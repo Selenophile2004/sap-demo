@@ -7,19 +7,19 @@ echo.
 where npm >nul 2>nul
 if errorlevel 1 (
     echo ERROR: Node.js/npm was not found on this computer.
-    echo Install it from https://nodejs.org (LTS version^), then close this
-    echo window, open a NEW Command Prompt, and run this file again.
+    echo Install it from https://nodejs.org - download the LTS version.
+    echo Then close this window, open a NEW Command Prompt, and run this file again.
     echo.
     pause
     exit /b 1
 )
 
 if not exist "%~dp0backend\node_modules" (
-    echo Installing backend dependencies (first run only)...
+    echo Installing backend dependencies - first run only...
     call npm install --prefix "%~dp0backend"
 )
 if not exist "%~dp0frontend\node_modules" (
-    echo Installing frontend dependencies (first run only)...
+    echo Installing frontend dependencies - first run only...
     call npm install --prefix "%~dp0frontend"
 )
 
