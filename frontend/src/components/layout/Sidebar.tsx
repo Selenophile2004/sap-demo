@@ -12,20 +12,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 3, mb: 4 }}>
-        <Box
-          sx={{
-            width: 44,
-            height: 44,
-            borderRadius: "14px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: surface.glassHover,
-            border: `1px solid ${surface.border}`,
-          }}
-        >
-          <Box component="img" src={ampersand} alt="ILIA" sx={{ width: 22, height: 26, objectFit: "contain" }} />
-        </Box>
+        <Box component="img" src={ampersand} alt="ILIA" sx={{ width: 40, height: 47, objectFit: "contain", flexShrink: 0 }} />
         <Box>
           <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.1 }}>
             Mindway

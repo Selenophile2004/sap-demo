@@ -157,21 +157,11 @@ export default function LoginPage() {
         }}
       >
         <Box
-          sx={{
-            width: 60,
-            height: 60,
-            borderRadius: "16px",
-            mx: "auto",
-            mb: 2.5,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: "rgba(121,0,221,0.10)",
-            border: "1px solid rgba(121,0,221,0.25)",
-          }}
-        >
-          <Box component="img" src={ampersand} alt="ILIA" sx={{ width: 30, height: 35, objectFit: "contain" }} />
-        </Box>
+          component="img"
+          src={ampersand}
+          alt="ILIA"
+          sx={{ width: 64, height: 75, objectFit: "contain", mx: "auto", mb: 2.5, display: "block" }}
+        />
         <Typography variant="h5" fontWeight={800} gutterBottom>
           خوش آمدید
         </Typography>
