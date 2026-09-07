@@ -1,5 +1,5 @@
 import { Box, Typography, IconButton, Tooltip, Avatar, Chip } from "@mui/material";
-import { RefreshCw, LogOut, Menu, Sun, Moon, AlertTriangle } from "lucide-react";
+import { RefreshCw, LogOut, Menu, Sun, Moon, AlertTriangle, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "../../app/store/authStore";
 import { useEtlMetaStore } from "../../app/store/etlMetaStore";
@@ -132,9 +132,6 @@ export default function Header({ onOpenMobileMenu }: Props) {
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
         <Box sx={{ textAlign: "left", display: { xs: "none", sm: "block" }, minWidth: 0 }}>
-          <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.2 }} noWrap>
-            {user?.displayName}
-          </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
             {user?.displayRole}
           </Typography>
@@ -143,13 +140,13 @@ export default function Header({ onOpenMobileMenu }: Props) {
           sx={{
             width: 38,
             height: 38,
-            fontWeight: 700,
             flexShrink: 0,
             backgroundImage: `linear-gradient(135deg, ${brand.primary}, ${brand.primaryDark})`,
             border: `1px solid ${surface.borderStrong}`,
+            color: "#fff",
           }}
         >
-          {user?.displayName?.[0] ?? "?"}
+          <User size={18} />
         </Avatar>
         <Tooltip title={mode === "dark" ? "حالت روشن" : "حالت تیره"}>
           <IconButton size="small" onClick={toggleMode} sx={iconBtnSx}>
@@ -162,7 +159,7 @@ export default function Header({ onOpenMobileMenu }: Props) {
             onClick={handleLogout}
             sx={{
               ...iconBtnSx,
-              "&:hover": { bgcolor: "rgba(234,34,40,0.15)", borderColor: brand.primary },
+              "&:hover": { bgcolor: "rgba(121,0,221,0.15)", borderColor: brand.primary },
             }}
           >
             <LogOut size={16} />

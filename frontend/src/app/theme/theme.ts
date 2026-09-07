@@ -60,7 +60,7 @@ export function createAppTheme(mode: "dark" | "light") {
         variants: [
           {
             props: { variant: "contained", color: "primary" },
-            style: { boxShadow: "0 6px 20px rgba(234,34,40,0.35)" },
+            style: { boxShadow: "0 6px 20px rgba(121,0,221,0.35)" },
           },
         ],
       },

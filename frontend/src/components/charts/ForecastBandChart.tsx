@@ -51,7 +51,7 @@ export default function ForecastBandChart({ history, forecast }: Props) {
         symbolSize: 6,
         lineStyle: { color: brand.primary, width: 3 },
         itemStyle: { color: brand.primary },
-        areaStyle: { color: "rgba(234,34,40,0.08)" },
+        areaStyle: { color: "rgba(121,0,221,0.08)" },
       },
       {
         name: "بازه‌ی عدم‌قطعیت",

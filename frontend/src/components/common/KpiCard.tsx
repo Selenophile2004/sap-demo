@@ -48,7 +48,7 @@ export default function KpiCard({ title, value, icon: Icon, trendPct, subtitle, 
           width: 3,
           opacity: 0.5,
           transition: "opacity .22s ease",
-          backgroundImage: "linear-gradient(180deg, #EA2228, #F8B17B)",
+          backgroundImage: "linear-gradient(180deg, #7900DD, #F8B17B)",
         }}
       />
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -64,13 +64,13 @@ export default function KpiCard({ title, value, icon: Icon, trendPct, subtitle, 
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              bgcolor: "rgba(234,34,40,0.12)",
+              bgcolor: "rgba(121,0,221,0.12)",
               color: "primary.light",
               flexShrink: 0,
               transition: "transform .25s cubic-bezier(.34,1.56,.64,1), background-color .2s ease",
               ".MuiPaper-root:hover &": {
                 transform: "scale(1.12) rotate(-4deg)",
-                bgcolor: "rgba(234,34,40,0.2)",
+                bgcolor: "rgba(121,0,221,0.2)",
               },
             }}
           >

@@ -191,7 +191,7 @@ export default function ReceivablesPage() {
             <HorizontalBarChart
               labels={byVisitor.map((b) => b.visitor)}
               values={byVisitor.map((b) => b.totalUnpaid)}
-              color="#EA2228"
+              color="#7900DD"
             />
           </ChartCard>
         </Grid>

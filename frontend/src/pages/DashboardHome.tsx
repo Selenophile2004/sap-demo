@@ -162,7 +162,7 @@ export default function DashboardHome() {
           position: "relative",
           overflow: "hidden",
           backgroundImage:
-            "radial-gradient(circle at 15% 30%, rgba(234,34,40,0.14), transparent 55%), radial-gradient(circle at 90% 20%, rgba(248,177,123,0.12), transparent 50%)",
+            "radial-gradient(circle at 15% 30%, rgba(121,0,221,0.14), transparent 55%), radial-gradient(circle at 90% 20%, rgba(248,177,123,0.12), transparent 50%)",
         }}
       >
         <Typography variant="h5" fontWeight={800} gutterBottom>
@@ -238,7 +238,7 @@ export default function DashboardHome() {
             value={salesKpis ? formatCompactRial(salesKpis.totalNetAmount) : null}
             subtitle="ماژول فروش"
             icon={ShoppingCart}
-            color="#EA2228"
+            color="#7900DD"
             to="/sales"
           />
         </Grid>

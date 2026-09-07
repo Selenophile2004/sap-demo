@@ -216,7 +216,7 @@ export default function PnlPage() {
             <HorizontalBarChart
               labels={byMarketer.map((c) => c.marketer ?? "")}
               values={byMarketer.map((c) => c.netSales)}
-              color="#EA2228"
+              color="#7900DD"
             />
           </ChartCard>
         </Grid>

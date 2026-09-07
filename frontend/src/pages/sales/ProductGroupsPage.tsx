@@ -125,7 +125,7 @@ export default function ProductGroupsPage() {
             bgcolor: surface.glassHover,
             "& .MuiLinearProgress-bar": {
               borderRadius: 999,
-              backgroundImage: "linear-gradient(90deg, #EA2228, #F8B17B)",
+              backgroundImage: "linear-gradient(90deg, #7900DD, #F8B17B)",
             },
           }}
         />

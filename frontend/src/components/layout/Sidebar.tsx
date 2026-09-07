@@ -2,9 +2,9 @@ import { Backdrop, Box, Fade, List, ListItemButton, ListItemIcon, ListItemText, 
 import { CacheProvider } from "@emotion/react";
 import { NavLink } from "react-router-dom";
 import { menuItems } from "../../app/menuConfig";
-import { surface, glassBlur, brand } from "../../app/theme/palette";
+import { surface, glassBlur, brand, brandGrey } from "../../app/theme/palette";
 import { plainCache } from "../../app/theme/plainCache";
-import logo from "../../assets/logo.png";
+import ampersand from "../../assets/logo-ampersand.png";
 
 export const SIDEBAR_WIDTH = 264;
 
@@ -24,14 +24,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             border: `1px solid ${surface.border}`,
           }}
         >
-          <Box component="img" src={logo} alt="SAP" sx={{ width: 28, height: 28, objectFit: "contain" }} />
+          <Box component="img" src={ampersand} alt="ILIA" sx={{ width: 22, height: 26, objectFit: "contain" }} />
         </Box>
         <Box>
           <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.1 }}>
-            SAP
+            Mindway
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            26-SAP-D-MSR
+          <Typography variant="caption" sx={{ color: brandGrey }}>
+            Powered by ILIA
           </Typography>
         </Box>
       </Box>
@@ -127,7 +127,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     backgroundImage: `linear-gradient(135deg, ${brand.primary}, ${brand.primaryDark})`,
                     color: "#fff",
                     border: `1px solid ${brand.primaryLight}`,
-                    boxShadow: `0 6px 20px rgba(234,34,40,0.4)`,
+                    boxShadow: `0 6px 20px rgba(121,0,221,0.4)`,
                     "& .MuiListItemIcon-root": { color: "#fff" },
                   },
                 }}

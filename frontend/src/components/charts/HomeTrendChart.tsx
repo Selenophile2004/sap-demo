@@ -39,7 +39,7 @@ export default function HomeTrendChart({ data }: Props) {
         symbolSize: 6,
         lineStyle: { color: brand.primary, width: 3 },
         itemStyle: { color: brand.primary },
-        areaStyle: { color: "rgba(234,34,40,0.10)" },
+        areaStyle: { color: "rgba(121,0,221,0.10)" },
       },
       {
         name: "سود و (زیان) خالص",

@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { Backdrop, Box, Fade, IconButton, Modal, TextField, Tooltip, Typography } from "@mui/material";
 import { CacheProvider, keyframes } from "@emotion/react";
-import { Sparkles, X, Send } from "lucide-react";
+import { X, Send } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { surface, glassBlur, brand } from "../../app/theme/palette";
+import { surface, glassBlur, brand, brandGrey } from "../../app/theme/palette";
 import { plainCache } from "../../app/theme/plainCache";
 import { assistantApi, type AssistantHistoryTurn } from "../../lib/api/assistantApi";
+import aiIcon from "../../assets/ai-icon.png";
 
 // تعداد نوبت‌های اخیر گفتگو که همراه هر پیام جدید برای مدل فرستاده می‌شود — فرانت‌اند
 // منبع حقیقت تاریخچه است (سمت سرور session ذخیره نمی‌شود)، پس همین آرایه‌ی پیام‌های
@@ -15,9 +16,14 @@ const MAX_HISTORY_TURNS = 20;
 
 const FAB_SIZE = { xs: 48, sm: 56 };
 const FAB_OFFSET = { xs: 16, sm: 24 };
-// فاصله‌ی پایین پنل از پایین صفحه = افست دکمه + ارتفاع دکمه + یک فاصله‌ی کوچک، تا
-// پنل دقیقاً از بالای دکمه «رشد» کند، نه رویش بیفتد.
-const PANEL_BOTTOM = { xs: 16 + 48 + 12, sm: 24 + 56 + 12 };
+
+// پنل دیگر یک popover کوچک نزدیک دکمه نیست — دقیقاً مثل سایدبار (منوی همبرگری در
+// هدر) از لبه‌ی صفحه باز می‌شود، با این تفاوت که سایدبار از راست باز می‌شود و این
+// پنل، آینه‌ی آن، از چپ. عرض تقریباً نصف صفحه تا مارک‌داون (جدول/لیست/بولد) واقعاً
+// جا برای نفس کشیدن داشته باشد؛ در موبایل نزدیک به تمام‌عرض چون نصفِ یک صفحه‌ی
+// کوچک عملاً غیرقابل‌استفاده است.
+const PANEL_WIDTH = { xs: "100%", sm: "72vw", md: "50vw" };
+const PANEL_MAX_WIDTH = 720;
 
 let messageSeq = 0;
 function nextId(): string {
@@ -40,10 +46,10 @@ const GREETING =
 // یک آیکون ساکن دیگر. دامنه و شدتش عمداً کم نگه داشته شده (نه پررنگ/گاودی).
 const pulseGlow = keyframes`
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(234, 34, 40, 0.38), 0 6px 20px rgba(234, 34, 40, 0.38);
+    box-shadow: 0 0 0 0 rgba(121, 0, 221, 0.38), 0 6px 20px rgba(121, 0, 221, 0.38);
   }
   50% {
-    box-shadow: 0 0 0 9px rgba(234, 34, 40, 0), 0 6px 26px rgba(234, 34, 40, 0.48);
+    box-shadow: 0 0 0 9px rgba(121, 0, 221, 0), 0 6px 26px rgba(121, 0, 221, 0.48);
   }
 `;
 
@@ -344,7 +350,6 @@ export default function AssistantWidget() {
             height: FAB_SIZE,
             zIndex: (theme) => theme.zIndex.modal + 1,
             backgroundImage: `linear-gradient(135deg, ${brand.primary}, ${brand.primaryDark})`,
-            color: "#fff",
             animation: `${pulseGlow} 2.8s ease-in-out infinite`,
             "@media (prefers-reduced-motion: reduce)": { animation: "none" },
             transition: "transform .18s ease",
@@ -354,36 +359,38 @@ export default function AssistantWidget() {
             },
           }}
         >
-          <Sparkles size={24} />
+          <Box component="img" src={aiIcon} alt="" sx={{ width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 }, objectFit: "contain" }} />
         </IconButton>
       </Tooltip>
 
+      {/* پنل — دقیقاً هم‌خانواده با Sidebar.tsx (Modal+Fade تمام‌ارتفاع از لبه‌ی
+          صفحه)، با این تفاوت که سایدبار از «right: 0» باز می‌شود و این پنل، آینه‌ی
+          آن، از «left: 0» — به همراه عرض تقریباً نصف صفحه به‌جای پاپ‌آور کوچک قبلی،
+          تا مارک‌داون (جدول/لیست/بولد) پاسخ‌ها واقعاً جا برای نفس کشیدن داشته باشد. */}
       <Modal
           open={open}
           onClose={handleClose}
           closeAfterTransition
           keepMounted
           slots={{ backdrop: Backdrop }}
-          slotProps={{ backdrop: { sx: { bgcolor: "rgba(5,5,8,0.25)" } } }}
+          slotProps={{ backdrop: { sx: { bgcolor: "rgba(5,5,8,0.4)" } } }}
         >
           <Fade in={open}>
             <Box
               sx={{
                 position: "fixed",
-                bottom: PANEL_BOTTOM,
-                left: FAB_OFFSET,
-                width: { xs: "calc(100vw - 32px)", sm: 384 },
-                maxWidth: 420,
-                height: { xs: "min(70vh, 560px)", sm: "min(75vh, 600px)" },
+                top: 0,
+                left: 0,
+                height: "100%",
+                width: PANEL_WIDTH,
+                maxWidth: PANEL_MAX_WIDTH,
                 display: "flex",
                 flexDirection: "column",
-                borderRadius: "16px",
-                overflow: "hidden",
                 bgcolor: surface.glassStrong,
                 backdropFilter: glassBlur,
                 WebkitBackdropFilter: glassBlur,
-                border: `1px solid ${surface.border}`,
-                boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+                borderInlineEnd: `1px solid ${surface.border}`,
+                boxShadow: "8px 0 32px rgba(0,0,0,0.35)",
                 outline: "none",
               }}
             >
@@ -392,33 +399,49 @@ export default function AssistantWidget() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  px: 2,
-                  py: 1.5,
+                  px: { xs: 2, sm: 3 },
+                  py: 2,
                   borderBottom: `1px solid ${surface.border}`,
+                  backgroundImage: "linear-gradient(135deg, rgba(121,0,221,0.14), transparent 65%)",
                   flexShrink: 0,
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
                   <Box
                     sx={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: "9px",
+                      width: 40,
+                      height: 40,
+                      borderRadius: "12px",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       backgroundImage: `linear-gradient(135deg, ${brand.primary}, ${brand.primaryDark})`,
-                      color: "#fff",
+                      boxShadow: "0 4px 16px rgba(121,0,221,0.35)",
                       flexShrink: 0,
                     }}
                   >
-                    <Sparkles size={16} />
+                    <Box component="img" src={aiIcon} alt="" sx={{ width: 22, height: 22, objectFit: "contain" }} />
                   </Box>
-                  <Typography variant="subtitle2" fontWeight={800}>
-                    دستیار هوشمند
-                  </Typography>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="subtitle1" fontWeight={800} noWrap>
+                      دستیار هوشمند Mindway
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: brandGrey }} noWrap>
+                      بر پایه‌ی داده‌های واقعی سیستم
+                    </Typography>
+                  </Box>
                 </Box>
-                <IconButton size="small" onClick={handleClose} aria-label="بستن دستیار هوشمند">
+                <IconButton
+                  size="small"
+                  onClick={handleClose}
+                  aria-label="بستن دستیار هوشمند"
+                  sx={{
+                    bgcolor: surface.glassHover,
+                    border: `1px solid ${surface.border}`,
+                    flexShrink: 0,
+                    "&:hover": { bgcolor: surface.borderStrong },
+                  }}
+                >
                   <X size={18} />
                 </IconButton>
               </Box>
@@ -429,73 +452,83 @@ export default function AssistantWidget() {
                   flex: "1 1 auto",
                   minHeight: 0,
                   overflowY: "auto",
-                  px: 1.75,
-                  py: 1.75,
+                  px: { xs: 2, sm: 3.5 },
+                  py: 2.5,
                   display: "flex",
                   flexDirection: "column",
-                  gap: 1.25,
+                  gap: 1.5,
                 }}
               >
-                {messages.map((m) => (
-                  <MessageBubble key={m.id} message={m} />
-                ))}
-                {loading && <TypingIndicator />}
+                <Box sx={{ maxWidth: 760, width: "100%", mx: "auto", display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  {messages.map((m) => (
+                    <MessageBubble key={m.id} message={m} />
+                  ))}
+                  {loading && <TypingIndicator />}
+                </Box>
               </Box>
 
               <Box
                 sx={{
                   display: "flex",
-                  alignItems: "flex-end",
-                  gap: 1,
-                  px: 1.5,
-                  py: 1.25,
+                  flexDirection: "column",
+                  gap: 0.75,
+                  px: { xs: 2, sm: 3.5 },
+                  py: 2,
                   borderTop: `1px solid ${surface.border}`,
                   flexShrink: 0,
                 }}
               >
-                <TextField
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder="سوال خود را بپرسید…"
-                  size="small"
-                  fullWidth
-                  multiline
-                  maxRows={4}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "12px",
-                      bgcolor: surface.glassHover,
-                    },
-                  }}
-                />
-                <IconButton
-                  onClick={handleSend}
-                  disabled={!input.trim() || loading}
-                  aria-label="ارسال پیام"
-                  sx={{
-                    flexShrink: 0,
-                    width: 40,
-                    height: 40,
-                    backgroundImage: `linear-gradient(135deg, ${brand.primary}, ${brand.primaryDark})`,
-                    color: "#fff",
-                    "&:hover": {
-                      backgroundImage: `linear-gradient(135deg, ${brand.primaryLight}, ${brand.primary})`,
-                    },
-                    "&.Mui-disabled": {
-                      backgroundImage: "none",
-                      bgcolor: surface.glassHover,
-                      color: "text.secondary",
-                    },
-                  }}
+                <Box sx={{ maxWidth: 760, width: "100%", mx: "auto", display: "flex", alignItems: "flex-end", gap: 1 }}>
+                  <TextField
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    placeholder="سوال خود را بپرسید…"
+                    size="small"
+                    fullWidth
+                    multiline
+                    maxRows={6}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: "14px",
+                        bgcolor: surface.glassHover,
+                      },
+                    }}
+                  />
+                  <IconButton
+                    onClick={handleSend}
+                    disabled={!input.trim() || loading}
+                    aria-label="ارسال پیام"
+                    sx={{
+                      flexShrink: 0,
+                      width: 42,
+                      height: 42,
+                      backgroundImage: `linear-gradient(135deg, ${brand.primary}, ${brand.primaryDark})`,
+                      color: "#fff",
+                      "&:hover": {
+                        backgroundImage: `linear-gradient(135deg, ${brand.primaryLight}, ${brand.primary})`,
+                      },
+                      "&.Mui-disabled": {
+                        backgroundImage: "none",
+                        bgcolor: surface.glassHover,
+                        color: "text.secondary",
+                      },
+                    }}
+                  >
+                    <Send size={17} />
+                  </IconButton>
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{ color: brandGrey, textAlign: "center", opacity: 0.85, maxWidth: 760, width: "100%", mx: "auto" }}
                 >
-                  <Send size={17} />
-                </IconButton>
+                  Enter برای ارسال، Shift+Enter برای خط جدید
+                </Typography>
               </Box>
             </Box>
           </Fade>

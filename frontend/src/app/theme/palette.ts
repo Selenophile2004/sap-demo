@@ -1,10 +1,15 @@
 export const brand = {
-  primary: "#EA2228",
-  primaryDark: "#B5171C",
-  primaryLight: "#FF5A56",
+  primary: "#7900DD",
+  primaryDark: "#5C00A8",
+  primaryLight: "#A855F7",
   secondary: "#F8B17B",
   secondaryDark: "#D98F55",
 };
+
+// خاکستری برندِ ILIA (نمونه‌برداری‌شده از فایل «&»). فقط به‌صورت پراکنده و کم‌رنگ
+// در متن‌های ثانویه، caption ها یا حاشیه/جداکننده‌های ظریف استفاده می‌شود — جایگزین
+// سیستماتیک surface.* / textSecondary نیست.
+export const brandGrey = "#C1C1C1";
 
 // این مقادیر رنگ واقعی نیستند؛ به متغیرهای CSS اشاره می‌کنند که createAppTheme
 // (در theme.ts) بسته به حالت روشن/تیره در سطح :root تعریف می‌کند. یعنی همه‌ی
@@ -53,9 +58,9 @@ export const paletteByMode: Record<"dark" | "light", PaletteModeValues> = {
     textSecondary: "rgba(245,245,245,0.65)",
     chipBg: "rgba(255,255,255,0.06)",
     bodyGradient: [
-      "radial-gradient(circle at 12% 8%, rgba(234,34,40,0.16), transparent 40%)",
+      "radial-gradient(circle at 12% 8%, rgba(121,0,221,0.16), transparent 40%)",
       "radial-gradient(circle at 88% 15%, rgba(248,177,123,0.10), transparent 42%)",
-      "radial-gradient(circle at 50% 100%, rgba(234,34,40,0.08), transparent 50%)",
+      "radial-gradient(circle at 50% 100%, rgba(121,0,221,0.08), transparent 50%)",
     ].join(", "),
     paperShadow: "0 8px 32px rgba(0,0,0,0.35)",
   },
@@ -71,9 +76,9 @@ export const paletteByMode: Record<"dark" | "light", PaletteModeValues> = {
     textSecondary: "rgba(26,27,30,0.64)",
     chipBg: "rgba(15,15,30,0.055)",
     bodyGradient: [
-      "radial-gradient(circle at 12% 8%, rgba(234,34,40,0.07), transparent 40%)",
+      "radial-gradient(circle at 12% 8%, rgba(121,0,221,0.07), transparent 40%)",
       "radial-gradient(circle at 88% 15%, rgba(248,177,123,0.09), transparent 42%)",
-      "radial-gradient(circle at 50% 100%, rgba(234,34,40,0.04), transparent 50%)",
+      "radial-gradient(circle at 50% 100%, rgba(121,0,221,0.04), transparent 50%)",
     ].join(", "),
     paperShadow: "0 8px 28px rgba(20,20,45,0.08)",
   },

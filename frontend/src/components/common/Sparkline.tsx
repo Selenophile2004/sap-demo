@@ -5,7 +5,7 @@ interface Props {
   height?: number;
 }
 
-export default function Sparkline({ data, color = "#EA2228", width = 88, height = 32 }: Props) {
+export default function Sparkline({ data, color = "#7900DD", width = 88, height = 32 }: Props) {
   if (!data || data.length < 2) return null;
 
   const min = Math.min(...data);

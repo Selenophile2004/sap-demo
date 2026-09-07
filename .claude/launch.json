@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mindway-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "D:/project/BI/Sahsavand/Management/26-SAP-D-MSR/frontend", "run", "dev"],
+      "port": 5273
+    }
+  ]
+}

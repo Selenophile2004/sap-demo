@@ -20,7 +20,7 @@ export default function ComingSoonCard({ title, icon: Icon }: Props) {
         flexDirection: "column",
         justifyContent: "space-between",
         backgroundImage:
-          "linear-gradient(135deg, rgba(248,177,123,0.10), rgba(234,34,40,0.06))",
+          "linear-gradient(135deg, rgba(248,177,123,0.10), rgba(121,0,221,0.06))",
         transition: "transform .25s ease, border-color .25s ease",
         "&:hover": { transform: "translateY(-2px)" },
       }}

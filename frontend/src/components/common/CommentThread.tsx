@@ -102,7 +102,7 @@ export default function CommentThread({ targetType, targetId, targetLabel, colla
               size="small"
               onClick={handleSubmit}
               disabled={submitting || !text.trim()}
-              sx={{ bgcolor: "rgba(234,34,40,0.12)", "&:hover": { bgcolor: "rgba(234,34,40,0.22)" } }}
+              sx={{ bgcolor: "rgba(121,0,221,0.12)", "&:hover": { bgcolor: "rgba(121,0,221,0.22)" } }}
             >
               <Send size={16} />
             </IconButton>
