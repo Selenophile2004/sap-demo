@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: sap-demo
+    runtime: node
+    plan: free
+    buildCommand: "cd frontend && npm install && npm run build && cd ../backend && npm install && npm run build"
+    startCommand: "cd backend && node dist/index.js"
+    envVars:
+      - key: PUBLIC_DIR
+        value: ../frontend/dist
+      - key: DATA_DIR
+        value: ../fake-data
+      - key: ETL_OUTPUT_DIR
+        value: ../fake-data/output
+      - key: ETL_ENABLED
+        value: "false"
+      - key: CORS_ORIGIN
+        value: https://sap-demo.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 12h
+      - key: CEO_USERNAME
+        value: demo
+      - key: CEO_PASSWORD_HASH
+        sync: false
+      - key: CEO_DISPLAY_NAME
+        value: کاربر نمایشی
+      - key: CEO_DISPLAY_ROLE
+        value: مدیرعامل (دمو)
+      - key: SINA_USERNAME
+        value: guest
+      - key: SINA_PASSWORD_HASH
+        sync: false
+      - key: SINA_DISPLAY_NAME
+        value: بازدیدکننده
+      - key: SINA_DISPLAY_ROLE
+        value: کاربر دمو
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b

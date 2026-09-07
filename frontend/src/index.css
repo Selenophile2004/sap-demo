@@ -1,0 +1,20 @@
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.spin {
+  animation: ssap-spin 0.8s linear infinite;
+}
+
+@keyframes ssap-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

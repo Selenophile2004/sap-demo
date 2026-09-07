@@ -1,0 +1,27 @@
+Today (Jalali): 1405/06/15
+Reference pools built.
+Items generated: 184
+Customers generated: 216
+HR employees generated: 80 (active=68, terminated=12)
+sales_lines rows generated: 6953
+sales invoices generated: 2018
+receivable_invoices rows generated: 820 (bounced checks: 38)
+customer_dim rows generated: 216
+pnl_long rows generated: 230 (23 months)
+pnl_product_marketer_lines rows generated: 3873
+pnl_center_lines rows generated: 45
+target_visitor rows generated: 900
+target_branch rows generated: 784
+inventory_lines rows generated: 1298
+personnel_records rows generated: 281
+headcount_by_month rows generated: 36
+salary_per_capita rows generated: 26
+finance_monthly rows generated: 24
+okr_objectives rows generated: 4, okr_key_results rows generated: 12
+Wrote sales.db: sales_lines=6953
+Wrote receivables.db: receivable_invoices=820, customer_dim=216
+Wrote pnl.db: pnl_long=230, pnl_product_marketer_lines=3873, pnl_center_lines=45
+Wrote hr.db: personnel_records=281, headcount_by_month=36, employee_status=80, salary_per_capita=26
+Wrote targets.db: target_visitor=900, target_branch=784
+Wrote inventory.db: inventory_lines=1298
+Wrote finance.db: finance_monthly=24, okr_objectives=4, okr_key_results=12
