@@ -273,6 +273,87 @@ function inventoryContext(): string {
   }
 }
 
+// آخرین ماه کامل + دو ماه پیش از آن (سه ماه) که برای محاسبه‌ی روند فروش به تفکیک
+// کالا لازم است — روی همان «آخرین ماه کامل» تکیه می‌کند که salesContext هم استفاده
+// می‌کند، پس دو تابع همیشه درباره‌ی «آخرین ماه» هم‌نظرند.
+function lastThreeCompleteMonths(maxDateStr: string): { year: number; month: number }[] {
+  const latest = lastCompleteMonth(maxDateStr);
+  const prev1 = previousYearMonth(latest.year, latest.month);
+  const prev2 = previousYearMonth(prev1.year, prev1.month);
+  return [prev2, prev1, latest];
+}
+
+// روند فروش به تفکیک کالا (سه ماه اخیر) — برای سوالات تحلیلی مثل «کدام کالاها در
+// حال افت‌اند و چرا؟» که با ارقام کلی سطح‌بالا (salesContext) اصلاً قابل پاسخ نیستند.
+// فقط پرفروش‌ترین ~۱۵-۲۰ کالا (بر اساس مجموع فروش سه ماه) نگه داشته می‌شود تا این
+// بخش از زمینه‌ی پرامپت متورم نشود؛ در نهایت از بیشترین افت به بیشترین رشد
+// (نسبت به ماه قبل) مرتب می‌شود تا مدل با یک نگاه روند را ببیند.
+function itemSalesTrendContext(): string {
+  try {
+    const sdb = salesDb();
+    const maxDateRow = sdb
+      .prepare("SELECT MAX(invoice_date_jalali) AS d FROM sales_lines WHERE record_source = 'نهایی'")
+      .get() as { d: string | null };
+    if (!maxDateRow.d) return "روند فروش کالاها: داده‌ای موجود نیست.";
+
+    const months = lastThreeCompleteMonths(maxDateRow.d);
+    const ym = months.map((m) => `${m.year}/${String(m.month).padStart(2, "0")}`);
+    const [prev2Ym, prev1Ym, latestYm] = ym;
+    const latest = months[2];
+    const prev1 = months[1];
+
+    const rows = sdb
+      .prepare(
+        `SELECT item_name, substr(invoice_date_jalali,1,7) AS ym,
+                SUM(net_amount) AS revenue, SUM(qty_normalized_count_signed) AS qty
+         FROM sales_lines
+         WHERE record_source = 'نهایی' AND item_name IS NOT NULL
+           AND substr(invoice_date_jalali,1,7) IN (@prev2Ym, @prev1Ym, @latestYm)
+         GROUP BY item_name, ym`
+      )
+      .all({ prev2Ym, prev1Ym, latestYm }) as { item_name: string; ym: string; revenue: number; qty: number }[];
+    if (rows.length === 0) return "روند فروش کالاها: داده‌ای موجود نیست.";
+
+    const byItem = new Map<string, Map<string, { revenue: number; qty: number }>>();
+    for (const r of rows) {
+      if (!byItem.has(r.item_name)) byItem.set(r.item_name, new Map());
+      byItem.get(r.item_name)!.set(r.ym, { revenue: r.revenue, qty: r.qty });
+    }
+
+    const items = Array.from(byItem.entries())
+      .map(([name, byMonth]) => {
+        const latestData = byMonth.get(latestYm) ?? { revenue: 0, qty: 0 };
+        const prevData = byMonth.get(prev1Ym) ?? { revenue: 0, qty: 0 };
+        const total = [...byMonth.values()].reduce((s, v) => s + v.revenue, 0);
+        const pct = prevData.revenue > 0 ? ((latestData.revenue - prevData.revenue) / prevData.revenue) * 100 : null;
+        return { name, total, latestRevenue: latestData.revenue, prevRevenue: prevData.revenue, latestQty: latestData.qty, pct };
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 18)
+      // مرتب‌سازی نهایی: از بیشترین افت به بیشترین رشد (آیتم‌های بدون داده‌ی ماه قبل — pct=null — وسط لیست)
+      .sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0));
+
+    const latestLabel = `${MONTH_NAMES[latest.month - 1]} ${latest.year}`;
+    const prevLabel = `${MONTH_NAMES[prev1.month - 1]} ${prev1.year}`;
+
+    const lines = items.map((it) => {
+      const pctStr = it.pct !== null ? formatPercent(it.pct) : "نامشخص (ماه قبل فروشی نداشته)";
+      return (
+        `- ${it.name}: ${latestLabel} ${formatCompactRial(it.latestRevenue)} (${formatInt(it.latestQty)} واحد)` +
+        ` | ${prevLabel} ${formatCompactRial(it.prevRevenue)} | روند نسبت به ماه قبل: ${pctStr}`
+      );
+    });
+
+    return (
+      `روند فروش کالاها (${items.length} کالای پرفروش بر اساس مجموع فروش سه ماه اخیر تا ${latestLabel}؛` +
+      ` مرتب‌شده از بیشترین افت به بیشترین رشد نسبت به ماه قبل):\n${lines.join("\n")}`
+    );
+  } catch (err) {
+    console.error("[assistant] خطا در خواندن زمینه‌ی روند فروش کالاها:", err);
+    return "روند فروش کالاها: در حال حاضر در دسترس نیست.";
+  }
+}
+
 function alertsSummaryContext(): string {
   try {
     const rdb = receivablesDb();
@@ -336,6 +417,7 @@ function commentsContext(): string {
 function gatherLiveContext(): string {
   return [
     salesContext(),
+    itemSalesTrendContext(),
     receivablesContext(),
     pnlContext(),
     hrContext(),
@@ -347,8 +429,14 @@ function gatherLiveContext(): string {
 }
 
 // ============================================================================
-// بخش ۲: تعریف تابع ناوبری (function calling) — صفحاتی که واقعاً در این برنامه
-// وجود دارند (frontend/src/app/menuConfig.tsx)، با توضیح یک‌خطی از محتوای هرکدام
+// بخش ۲: فهرست صفحات این برنامه (frontend/src/app/menuConfig.tsx) با توضیح یک‌خطی
+// از محتوای هرکدام — قبلاً به‌عنوان schema یک تابع function-calling («navigate_to_
+// section») هم به مدل داده می‌شد تا مستقیماً کاربر را ناوبری کند؛ آن مکانیزم حذف
+// شده (این مدل رایگان روی Groq در عمل در فراخوانی واقعی آن غیرقابل‌اعتماد بود —
+// گاهی یک تگ شبه-XML جعلی داخل متن می‌نوشت، گاهی فقط ادعای انجام کار می‌کرد بدون
+// فراخوانی واقعی). همین لیست حالا فقط به‌عنوان دانشِ زمینه‌ای در system prompt
+// استفاده می‌شود تا مدل بتواند در متن پاسخ، کاربر را با جمله‌ی معمولی به صفحه‌ی
+// مرتبط راهنمایی کند (نه این‌که ادعا کند خودش الان او را می‌برد).
 // ============================================================================
 
 const NAV_PAGES = [
@@ -399,34 +487,6 @@ const NAV_PAGES = [
   },
 ] as const;
 
-type NavPageValue = (typeof NAV_PAGES)[number]["value"];
-
-// شکل استاندارد «تابع/ابزار» در API سازگار با OpenAI (که Groq هم دقیقاً همین شکل را
-// می‌پذیرد): {type:"function", function:{name, description, parameters:JSONSchema}}.
-// عمداً بدون آنوتیشن صریح از تایپ‌های groq-sdk («Groq.Chat.ChatCompletionTool») چون
-// این آبجکت literal دقیقاً با آن ساختار می‌خواند و در محل فراخوانی («client.chat.
-// completions.create») به‌صورت ساختاری (structural typing) سنجیده می‌شود.
-const navigateDeclaration = {
-  type: "function" as const,
-  function: {
-    name: "navigate_to_section",
-    description:
-      "کاربر را به یکی از صفحات این برنامه‌ی مدیریتی منتقل می‌کند. فقط وقتی فراخوانی شود که کاربر صراحتاً بخواهد" +
-      " داده‌ی یک بخش مشخص را «ببیند»/«نشانش بدهد»/به آن صفحه «برود» — نه برای سوالات معمولی که با متن قابل پاسخ‌دادن‌اند.",
-    parameters: {
-      type: "object",
-      properties: {
-        page: {
-          type: "string",
-          enum: NAV_PAGES.map((p) => p.value),
-          description: "مسیر (route) صفحه‌ی مقصد در برنامه.",
-        },
-      },
-      required: ["page"],
-    },
-  },
-};
-
 // ============================================================================
 // بخش ۳: ساخت system instruction — زمینه‌ی زنده + یادداشت‌های مدیریتی + قواعد پاسخ
 // ============================================================================
@@ -457,20 +517,46 @@ ${commentsContext()}
 (مثلاً «با فرض ثابت ماندن حاشیه‌ی سود/سایر هزینه‌ها...»)، مراحل محاسبه را کوتاه نشان بده، و در پایان یک
 برآورد عددی بده. همیشه تاکید کن این یک تخمین ساده‌ی سرانگشتی است، نه پیش‌بینی دقیق مالی.
 
-# رفتن به صفحه‌ی مشخص (تابع navigate_to_section)
-اگر کاربر آشکارا خواست به بخش/گزارش خاصی از برنامه برود یا داده‌ی آن را ببیند/نشانش بدهی،
-تابع navigate_to_section را **واقعاً و فقط از طریق مکانیزم function calling** فراخوانی کن —
-هرگز چیزی شبیه به یک تگ یا فراخوانی تابع را به‌صورت متن خام در پاسخت ننویس (مثلاً هرگز چیزی شبیه
-navigate_to_section با پرانتز/تگ را در پاسخ متنی چاپ نکن؛ کاربر هرگز نباید نحو خام فراخوانی تابع
-را ببیند). همزمان یک جمله‌ی کوتاه تاییدی هم در پاسخ متنی‌ات بنویس (مثلاً «الان می‌برمت به صفحه‌ی
-مطالبات.»). صفحات موجود:
+# راهنمایی به صفحه‌ی مرتبط (فقط با متن — هیچ ناوبری خودکاری در کار نیست)
+اگر پاسخ به سوال کاربر با نگاه‌کردن به یکی از صفحات همین برنامه کامل‌تر می‌شود، در دل متن پاسخ،
+با یک جمله‌ی طبیعی و کوتاه اشاره کن کدام صفحه — مثلاً «برای جزئیات بیشتر می‌تونی به صفحه‌ی «فروش»
+سر بزنی» یا «فهرست کاملش تو صفحه‌ی «هشدارها» هست». این صرفاً یک راهنمایی متنی برای خودِ کاربر است؛
+هیچ مکانیزم ناوبری خودکاری وجود ندارد و تو خودت کاربر را به هیچ صفحه‌ای «نمی‌بری» — پس هرگز جمله‌ای
+که یک اقدام فوری را وعده بدهد ننویس (مثلاً هرگز «الان می‌برمت...» یا «الان نشونت می‌دم...»)؛ همیشه
+با فعلی بنویس که نشان بدهد خودِ کاربر باید دستی برود (مثل «می‌تونی ببینی»، «در دسترسه»، «سر بزنی»).
+این اشاره را فقط وقتی بیاور که واقعاً به کار سوال می‌آید، نه در هر پاسخ. صفحات موجود:
 ${navList}
-اگر سوال کاربر صرفاً یک سوال معمولی است (نه درخواست رفتن به صفحه)، این تابع را فراخوانی نکن.
 
 # قواعد کلی
 - فقط بر اساس داده‌های بالا و تاریخچه‌ی همین گفتگو پاسخ بده؛ هیچ عدد یا واقعیتی از خودت نساز.
 - اگر داده‌ای برای پاسخ دقیق کافی نیست، صادقانه همین را بگو.
-- پاسخ‌ها را کوتاه، مشخص و کاربردی نگه دار — مثل یک دستیار مدیرعامل، نه یک مقاله‌ی طولانی.`;
+- بخش «روند فروش کالاها» بالا، روند سه‌ماهه‌ی پرفروش‌ترین کالاها را نشان می‌دهد و برای سوالات تحلیلی
+  («کدام کالاها افت کرده‌اند؟»، «چرا فروش فلان کالا کم شده؟») همین را مبنا قرار بده. توضیح «چرا» را
+  همیشه به‌صورت یک فرضیه‌ی معقول و *صریحاً برچسب‌خورده* بر پایه‌ی همین الگوی عددی بیان کن (مثلاً «با توجه
+  به افت پیوسته‌ی دو ماه اخیر، احتمالاً...»)، نه یک واقعیت اثبات‌شده — چون در این داده هیچ اطلاعاتی درباره‌ی
+  رقبا، دلیل دقیق کمبود موجودی، تغییر قیمت، یا کمپین‌های بازاریابی نیست؛ اگر کاربر علت قطعی خواست، صادقانه
+  بگو داده‌ی فعلی فقط الگو/روند را نشان می‌دهد نه علت ریشه‌ای را.
+
+# لحن و عمق پاسخ (مخاطب: مدیرعامل و مدیران ارشد)
+مخاطب این دستیار مدیرعامل و تیم مدیریت ارشد است، نه یک تحلیلگر داده‌ی داخلی. پیش‌فرض را روی خلاصه‌ی
+کوتاه، پرمعنا و تصمیم‌ساز بگذار — نه پرکردن جواب با جمله‌های عمومی، تکرار سوال کاربر، یا مقدمه‌چینی
+غیرضروری. اما وقتی سوال واقعاً به جزئیات نیاز دارد (فهرست چند آیتمی، تفکیک به اجزا، محاسبه‌ی چندمرحله‌ای)،
+همان‌قدر که سوال می‌طلبد وارد جزئیات شو — عمق پاسخ باید متناسب با سوال باشد، نه یک قاعده‌ی ثابت «همیشه
+کوتاه» یا «همیشه مفصل». هر پاسخ، کوتاه یا بلند، باید چیزی باشد که یک دستیار ارشد و باهوش واقعاً روی
+میز مدیرعامل می‌گذارد: درست، کاربردی و ارزش‌خواندن‌داشتن — نه پرکننده‌ی بی‌محتوا و نه سطحی‌گویی وقتی
+سوال جزئیات می‌خواهد.
+
+# قالب‌بندی پاسخ (Markdown)
+پاسخت به‌صورت Markdown استاندارد (همان GFM: بولد/ایتالیک، فهرست بولت‌دار، جدول) رندر می‌شود — نه متن خام —
+پس از آن هدفمند و تمیز استفاده کن: **بولد** فقط برای عدد/نتیجه‌ی کلیدی که ارزش برجسته‌شدن دارد، فهرست
+بولت‌دار کوتاه فقط وقتی واقعاً چند آیتم را برمی‌شماری، و جدول فقط وقتی چند ردیف/چند ستون واقعاً قابل مقایسه‌اند
+(مثلاً مقایسه‌ی چند حوزه یا چند کالا) — نه برای یک مقدار تکی. از هدینگ یا تو‌رفتگی چندلایه که برای یک حباب
+گفتگوی کوتاه زیادی سنگین است پرهیز کن. نه کلاً نادیده‌اش بگیر (که خروجی یکدست و بی‌ساختار می‌شود) و نه هر
+جمله را بولد/بولت/جدول کن (که شلوغ و پرمدعا به نظر می‌رسد) — فقط جایی که واقعاً خوانایی/تاکید را بهتر می‌کند.
+مهم: **هرگز از تگ خام HTML استفاده نکن** (نه <br>، نه <b>، نه هیچ تگ دیگری) — فقط نحو Markdown خالص. این
+یعنی داخل هر سلول جدول هم فقط یک نکته/مقدار کوتاه بنویس؛ اگر چند نکته برای یک ردیف داری، آن‌ها را در همان
+سلول با «؛» یا «، » از هم جدا کن (نه با تگ خط‌جدید)، یا اگر واقعاً هرکدام مستقل و مهم‌اند، به‌جای جدول از
+یک فهرست بولت‌دار معمولی استفاده کن.`;
 }
 
 // ============================================================================
@@ -499,13 +585,13 @@ export interface ChatTurn {
 
 export interface AssistantReply {
   reply: string;
-  navigateTo?: string;
 }
 
 /**
  * *** نقطه‌ی اتصال به هوش مصنوعی واقعی (Groq، API سازگار با OpenAI) ***
  * ورودی: پیام جدید کاربر + تاریخچه‌ی گفتگو (فرانت‌اند منبع حقیقت تاریخچه است، این
- * تابع هیچ session سمت سرور نگه نمی‌دارد). خروجی: متن پاسخ + مقصد ناوبری اختیاری.
+ * تابع هیچ session سمت سرور نگه نمی‌دارد). خروجی: فقط متن پاسخ — بدون هیچ مکانیزم
+ * ناوبری خودکار (رجوع کنید به کامنت بالای NAV_PAGES: راهنمایی صفحه فقط متنی است).
  */
 export async function generateReply(message: string, history: ChatTurn[] = []): Promise<AssistantReply> {
   const trimmed = message.trim();
@@ -536,57 +622,16 @@ export async function generateReply(message: string, history: ChatTurn[] = []): 
     const response = await ai.chat.completions.create({
       model: config.groqModel,
       messages,
-      tools: [navigateDeclaration],
     });
 
     const choice = response.choices[0]?.message;
-    const calls = choice?.tool_calls ?? [];
-    const navCall = calls.find((c) => c.type === "function" && c.function.name === "navigate_to_section");
-    let navigateTo: NavPageValue | undefined;
-    if (navCall && navCall.type === "function") {
-      try {
-        const args = JSON.parse(navCall.function.arguments) as { page?: unknown };
-        const match = typeof args.page === "string" ? NAV_PAGES.find((p) => p.value === args.page) : undefined;
-        if (match) navigateTo = match.value;
-      } catch (parseErr) {
-        console.error("[assistant] خطا در پارس‌کردن آرگومان‌های navigate_to_section:", parseErr);
-      }
-    }
-
     let reply = (choice?.content ?? "").trim();
 
-    // بعضی مدل‌ها (به‌خصوص روی Groq) گاهی به‌جای فراخوانی واقعی تابع از طریق مکانیزم
-    // function calling، یک تگ شبه-XML شبیه <navigate_to_section page="..."> را
-    // مستقیم داخل متن پاسخ می‌نویسند — یعنی همان چیزی که در دستورالعمل بالا صریحاً
-    // ازش منع شده، ولی مدل گاهی رعایت نمی‌کند. این یک شبکه‌ی ایمنی است: اگر چنین
-    // تگی در متن پاسخ دیده شد، مقدار «page» را از همانجا استخراج می‌کنیم (اگر
-    // navigateTo از راه واقعی tool_calls قبلاً ست نشده باشد) و خودِ تگ خام را از
-    // متنی که به کاربر نشان داده می‌شود پاک می‌کنیم — کاربر هرگز نباید نحو خام
-    // فراخوانی تابع را ببیند.
-    const leakedTagMatch = reply.match(/<navigate_to_section\s+page=["']([^"']+)["']\s*\/?>/i);
-    if (leakedTagMatch) {
-      if (!navigateTo) {
-        const match = NAV_PAGES.find((p) => p.value === leakedTagMatch[1]);
-        if (match) navigateTo = match.value;
-      }
-      reply = reply
-        .replace(/<navigate_to_section\s+page=["'][^"']+["']\s*\/?>/gi, "")
-        .replace(/^>\s*\*{0,2}(لینک|link)\*{0,2}:?\s*$/gim, "")
-        .replace(/^>\s*$/gim, "")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-    }
-
     if (!reply) {
-      if (navigateTo) {
-        const target = NAV_PAGES.find((p) => p.value === navigateTo);
-        reply = `الان شما را به صفحه‌ی «${target?.label ?? navigateTo}» می‌برم.`;
-      } else {
-        reply = "متوجه سوال نشدم؛ می‌شه با جزئیات بیشتری دوباره بپرسید؟";
-      }
+      reply = "متوجه سوال نشدم؛ می‌شه با جزئیات بیشتری دوباره بپرسید؟";
     }
 
-    return navigateTo ? { reply, navigateTo } : { reply };
+    return { reply };
   } catch (err) {
     // خطای واقعی فقط سمت سرور لاگ می‌شود (برای دیباگ خودمان) — نه در پاسخ به فرانت‌اند،
     // تا نه جزییات فنی/کلید API درز کند و نه کاربر با stack trace خام روبه‌رو شود.

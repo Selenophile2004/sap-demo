@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Backdrop, Box, Fade, IconButton, Modal, TextField, Tooltip, Typography } from "@mui/material";
 import { CacheProvider, keyframes } from "@emotion/react";
 import { Sparkles, X, Send } from "lucide-react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { surface, glassBlur, brand } from "../../app/theme/palette";
 import { plainCache } from "../../app/theme/plainCache";
 import { assistantApi, type AssistantHistoryTurn } from "../../lib/api/assistantApi";
@@ -84,6 +85,149 @@ function TypingIndicator() {
   );
 }
 
+// نگاشت تگ‌های Markdown به کامپوننت‌های MUI — فقط برای پیام‌های دستیار استفاده می‌شود
+// (پیام‌های خودِ کاربر متن خام‌اند، چون هیچ‌وقت خودشان قالب‌بندی تولید نمی‌کنند).
+// تمام تورفتگی‌های فهرست عمداً با ویژگی منطقی «paddingInlineStart» نوشته شده‌اند
+// (نه «pl»ی MUI که به padding-left فیزیکی ترجمه می‌شود) تا مستقل از این‌که این
+// زیردرخت در کدام emotion cache است، در چیدمان RTL برنامه (dir="rtl" روی <html>)
+// به‌صورت خودکار سمت درست (راست) تورفتگی بگیرند و نشانه‌ی بولت هم‌جهت متن بماند.
+const markdownComponents: Components = {
+  p: ({ children }) => (
+    <Typography variant="body2" sx={{ lineHeight: 1.7, m: 0 }}>
+      {children}
+    </Typography>
+  ),
+  strong: ({ children }) => (
+    <Box component="strong" sx={{ fontWeight: 800 }}>
+      {children}
+    </Box>
+  ),
+  em: ({ children }) => (
+    <Box component="em" sx={{ fontStyle: "italic" }}>
+      {children}
+    </Box>
+  ),
+  ul: ({ children }) => (
+    <Box
+      component="ul"
+      sx={{ m: 0, paddingInlineStart: "1.4em", display: "flex", flexDirection: "column", gap: 0.4 }}
+    >
+      {children}
+    </Box>
+  ),
+  ol: ({ children }) => (
+    <Box
+      component="ol"
+      sx={{ m: 0, paddingInlineStart: "1.4em", display: "flex", flexDirection: "column", gap: 0.4 }}
+    >
+      {children}
+    </Box>
+  ),
+  li: ({ children }) => (
+    <Typography component="li" variant="body2" sx={{ lineHeight: 1.7 }}>
+      {children}
+    </Typography>
+  ),
+  a: ({ children, href }) => (
+    <Typography
+      component="a"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      variant="body2"
+      sx={{ color: brand.primary, fontWeight: 700, textDecoration: "underline" }}
+    >
+      {children}
+    </Typography>
+  ),
+  code: ({ children }) => (
+    <Box
+      component="code"
+      sx={{
+        fontFamily: "monospace",
+        fontSize: "0.85em",
+        bgcolor: surface.glassHover,
+        px: 0.5,
+        py: 0.15,
+        borderRadius: "4px",
+        direction: "ltr",
+        unicodeBidi: "isolate",
+      }}
+    >
+      {children}
+    </Box>
+  ),
+  pre: ({ children }) => (
+    <Box
+      component="pre"
+      sx={{ m: 0, overflowX: "auto", bgcolor: surface.glassHover, borderRadius: "8px", p: 1 }}
+    >
+      {children}
+    </Box>
+  ),
+  // هدینگ‌ها را انتظار نداریم (به مدل گفته شده لازم نیست)، ولی اگر مدل هرازگاهی تولیدشان
+  // کرد، به‌جای فونت غول‌آسای h1..h6 پیش‌فرض مرورگر، همان‌قدر برجسته‌ی یک جمله‌ی کلیدی نشان بده.
+  h1: ({ children }) => (
+    <Typography variant="subtitle2" fontWeight={800} sx={{ m: 0 }}>
+      {children}
+    </Typography>
+  ),
+  h2: ({ children }) => (
+    <Typography variant="subtitle2" fontWeight={800} sx={{ m: 0 }}>
+      {children}
+    </Typography>
+  ),
+  h3: ({ children }) => (
+    <Typography variant="subtitle2" fontWeight={800} sx={{ m: 0 }}>
+      {children}
+    </Typography>
+  ),
+  // جدول (GFM، از طریق remarkGfm) — در تحلیل‌های تحلیلی (مثل «وضعیت کلی شرکت»)، مدل
+  // اغلب برای مقایسه‌ی چند حوزه/کالا از جدول استفاده می‌کند؛ بدون این استایل، همان
+  // نحو خام «| ستون | ستون |» را می‌بینیم — دقیقاً همان مشکل «شلوغی» که قرار است رفع شود.
+  // چون حباب گفتگو باریک است، جدول در یک container با اسکرول افقی مستقل پیچیده شده
+  // (نه اسکرول کل صفحه) تا جدول‌های پهن چیدمان را نشکنند.
+  table: ({ children }) => (
+    <Box sx={{ overflowX: "auto", borderRadius: "8px", border: `1px solid ${surface.border}` }}>
+      <Box component="table" sx={{ borderCollapse: "collapse", width: "100%", fontSize: "0.8125rem" }}>
+        {children}
+      </Box>
+    </Box>
+  ),
+  thead: ({ children }) => (
+    <Box component="thead" sx={{ bgcolor: surface.glassHover }}>
+      {children}
+    </Box>
+  ),
+  tbody: ({ children }) => <Box component="tbody">{children}</Box>,
+  tr: ({ children }) => (
+    <Box component="tr" sx={{ "&:not(:last-of-type)": { borderBottom: `1px solid ${surface.border}` } }}>
+      {children}
+    </Box>
+  ),
+  th: ({ children }) => (
+    <Box component="th" sx={{ textAlign: "start", fontWeight: 800, px: 1, py: 0.6, whiteSpace: "nowrap" }}>
+      {children}
+    </Box>
+  ),
+  td: ({ children }) => (
+    <Box component="td" sx={{ textAlign: "start", px: 1, py: 0.6, verticalAlign: "top" }}>
+      {children}
+    </Box>
+  ),
+};
+
+// شبکه‌ی ایمنی: system prompt صریحاً به مدل گفته هیچ تگ خام HTML ننویسد (فقط Markdown خالص)،
+// ولی این مدل رایگان روی Groq گاهی همچنان برای شکستن خط داخل سلول جدول از <br> استفاده
+// می‌کند (دیده‌شده در تست واقعی). چون react-markdown عمداً بدون افزونه‌ی رندر HTML خام کار
+// می‌کند (تا هیچ HTML/اسکریپتی از پاسخ مدل مستقیم اجرا نشود — یک ملاحظه‌ی امنیتی، نه فقط
+// زیبایی‌شناسی)، بدون این تبدیل چنین تگی به‌صورت متن خام «<br>» به کاربر نشان داده می‌شد —
+// دقیقاً همان جمع‌وجورنبودنی که این تغییرات قرار است رفع کنند. اینجا آن را به یک جداکننده‌ی
+// طبیعی فارسی تبدیل می‌کنیم، نه این‌که تگ خام را رندر کنیم.
+function sanitizeAssistantMarkdown(text: string): string {
+  return text.replace(/<br\s*\/?>/gi, "؛ ");
+}
+
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   return (
@@ -100,16 +244,23 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           color: isUser ? "#fff" : "text.primary",
         }}
       >
-        <Typography variant="body2" sx={{ whiteSpace: "pre-line", lineHeight: 1.7 }}>
-          {message.text}
-        </Typography>
+        {isUser ? (
+          <Typography variant="body2" sx={{ whiteSpace: "pre-line", lineHeight: 1.7 }}>
+            {message.text}
+          </Typography>
+        ) : (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.9 }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {sanitizeAssistantMarkdown(message.text)}
+            </ReactMarkdown>
+          </Box>
+        )}
       </Box>
     </Box>
   );
 }
 
 export default function AssistantWidget() {
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -153,14 +304,8 @@ export default function AssistantWidget() {
     setLoading(true);
     scrollToBottom();
     try {
-      const { reply, navigateTo } = await assistantApi.chat(text, history);
+      const { reply } = await assistantApi.chat(text, history);
       setMessages((prev) => [...prev, { id: nextId(), role: "assistant", text: reply }]);
-      if (navigateTo) {
-        // اول بگذار کاربر متن پاسخ را ببیند، بعد (با کمی تاخیر) صفحه عوض شود — تا
-        // ناوبری ناگهانی وسط خواندن پاسخ حس قطع‌شدن ندهد.
-        scrollToBottom();
-        setTimeout(() => navigate(navigateTo), 900);
-      }
     } catch {
       setMessages((prev) => [
         ...prev,

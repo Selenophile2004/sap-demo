@@ -7,8 +7,6 @@ export interface AssistantHistoryTurn {
 
 export interface AssistantChatResponse {
   reply: string;
-  /** اگر مدل تشخیص دهد کاربر می‌خواهد به بخش مشخصی از برنامه برود، مسیر آن را برمی‌گرداند. */
-  navigateTo?: string;
 }
 
 export const assistantApi = {
