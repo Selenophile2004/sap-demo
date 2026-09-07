@@ -93,6 +93,25 @@ export function createAppTheme(mode: "dark" | "light") {
           },
         },
       },
+      // مرورگرهای مبتنی بر Chromium برای فیلدهای autofill‌شده (چه با تایپ خودکار، چه
+      // با پیشنهاد ذخیره‌ی مرورگر) یک پس‌زمینه‌ی آبی/زرد ثابت (معمولاً #E8F0FE) تحمیل
+      // می‌کنند که هیچ ربطی به تم برنامه ندارد و با پس‌زمینه‌ی شیشه‌ای رابط کاربری
+      // (glass) در تضاد است. این افکت از طریق باکس‌شادوی داخلیِ خیلی بزرگ به رنگ
+      // شفاف (نه رنگ پس‌زمینه‌ی واقعی — چون فیلد outlined از اساس پس‌زمینه‌ی توپر
+      // ندارد) و تاخیرانداختن transition پس‌زمینه (ترفند استاندارد رفع همین باگ
+      // شناخته‌شده‌ی Chromium) خنثی می‌شود؛ حاشیه/رنگ متن دست‌نخورده می‌ماند.
+      MuiOutlinedInput: {
+        styleOverrides: {
+          input: {
+            "&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus": {
+              WebkitBoxShadow: "0 0 0 1000px transparent inset",
+              WebkitTextFillColor: "currentColor",
+              caretColor: "currentColor",
+              transition: "background-color 5000s ease-in-out 0s",
+            },
+          },
+        },
+      },
     },
   });
 }

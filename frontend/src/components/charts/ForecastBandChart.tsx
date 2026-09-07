@@ -24,7 +24,7 @@ export default function ForecastBandChart({ history, forecast }: Props) {
 
   const option = {
     textStyle: baseTextStyle,
-    grid: { top: 30, right: 20, bottom: 40, left: 70 },
+    grid: { top: 40, right: 20, bottom: 40, left: 70 },
     legend: {
       top: 0,
       data: ["واقعی", "پیش‌بینی", "بازه‌ی عدم‌قطعیت"],

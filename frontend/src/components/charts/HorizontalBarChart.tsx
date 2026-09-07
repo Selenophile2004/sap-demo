@@ -15,7 +15,10 @@ export default function HorizontalBarChart({ labels, values, color = brand.secon
 
   const option = {
     textStyle: baseTextStyle,
-    grid: { top: 10, right: 20, bottom: 10, left: 140 },
+    // containLabel:true — رجوع کنید به همین توضیح در SimpleBarChart.tsx: فضای محور Y
+    // به‌جای حدس ثابت، خودکار بر اساس طول واقعی برچسب (که می‌تواند خیلی متفاوت باشد،
+    // مثلاً نام مشتری در برابر نام دسته‌ی هزینه) محاسبه می‌شود.
+    grid: { top: 10, right: 20, bottom: 10, left: 12, containLabel: true },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },

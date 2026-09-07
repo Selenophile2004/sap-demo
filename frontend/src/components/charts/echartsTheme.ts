@@ -19,6 +19,10 @@ const THEMES = {
       backgroundColor: "rgba(22,22,26,0.92)",
       borderColor: "rgba(255,255,255,0.12)",
       textStyle: { color: "#F5F5F5", fontFamily: "Vazirmatn" },
+      // confine:true تولتیپ را همیشه داخل مرزهای کانتینر نمودار نگه می‌دارد — بدون
+      // این، نزدیک لبه‌ی راست/پایین یک کارت (که خودش overflow:hidden دارد) تولتیپ
+      // می‌توانست بخشی بریده/پنهان بشود یا بیرون از کارت بیفتد.
+      confine: true,
     },
     splitArea: ["rgba(255,255,255,0.02)", "rgba(255,255,255,0.045)"],
     pointBorder: "rgba(255,255,255,0.35)",
@@ -37,6 +41,7 @@ const THEMES = {
       backgroundColor: "rgba(255,255,255,0.97)",
       borderColor: "rgba(20,20,30,0.14)",
       textStyle: { color: "#1A1B1E", fontFamily: "Vazirmatn" },
+      confine: true,
     },
     splitArea: ["rgba(20,20,30,0.02)", "rgba(20,20,30,0.045)"],
     pointBorder: "rgba(20,20,30,0.3)",

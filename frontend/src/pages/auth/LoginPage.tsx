@@ -9,7 +9,6 @@ import { useThemeModeStore } from "../../app/store/themeModeStore";
 import { brandGrey } from "../../app/theme/palette";
 import logoFullDark from "../../assets/logo-full-dark.png";
 import logoFullLight from "../../assets/logo-full-light.png";
-import ampersand from "../../assets/logo-ampersand.png";
 
 // نفسِ آرام لوگوی زمینه — دامنه‌ی حرکت عمداً خیلی کم است (فقط اسکیل و opacity)
 // تا حس «زنده»ی ظریف بدهد، نه یک المان حواس‌پرت‌کننده.
@@ -156,12 +155,6 @@ export default function LoginPage() {
           animation: `${cardIn} 0.5s cubic-bezier(.2,.8,.2,1) both`,
         }}
       >
-        <Box
-          component="img"
-          src={ampersand}
-          alt="ILIA"
-          sx={{ width: 64, height: 75, objectFit: "contain", mx: "auto", mb: 2.5, display: "block" }}
-        />
         <Typography variant="h5" fontWeight={800} sx={{ mb: 4 }}>
           Welcome
         </Typography>

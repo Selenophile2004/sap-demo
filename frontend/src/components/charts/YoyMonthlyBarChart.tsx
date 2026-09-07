@@ -34,7 +34,7 @@ export default function YoyMonthlyBarChart({ data, metric = "amount" }: Props) {
 
   const option = {
     textStyle: baseTextStyle,
-    grid: { top: 40, right: 16, bottom: 30, left: 70 },
+    grid: { top: 40, right: 20, bottom: 30, left: 70 },
     legend: {
       top: 0,
       textStyle: { ...baseTextStyle, fontSize: 12 },

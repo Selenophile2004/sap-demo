@@ -38,7 +38,6 @@ import HorizontalBarChart from "../components/charts/HorizontalBarChart";
 import BudgetVsActualChart from "../components/charts/BudgetVsActualChart";
 import DrillDownModal, { type DrillDownRow } from "../components/charts/DrillDownModal";
 import CommentThread from "../components/common/CommentThread";
-import { useAuthStore } from "../app/store/authStore";
 import { salesApi, type SalesKpis } from "../lib/api/salesApi";
 import { receivablesApi, type ByBranchRow } from "../lib/api/receivablesApi";
 import { pnlApi, type PnlSummary } from "../lib/api/pnlApi";
@@ -84,17 +83,8 @@ function okrProgressColor(pct: number) {
   return "#F87171";
 }
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "صبح بخیر";
-  if (h < 17) return "ظهر بخیر";
-  if (h < 20) return "عصر بخیر";
-  return "شب بخیر";
-}
-
 export default function DashboardHome() {
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
 
   const [salesKpis, setSalesKpis] = useState<SalesKpis | null>(null);
   const [recvKpis, setRecvKpis] = useState<Awaited<ReturnType<typeof receivablesApi.kpis>> | null>(null);
@@ -165,9 +155,10 @@ export default function DashboardHome() {
             "radial-gradient(circle at 15% 30%, rgba(121,0,221,0.14), transparent 55%), radial-gradient(circle at 90% 20%, rgba(248,177,123,0.12), transparent 50%)",
         }}
       >
-        <Typography variant="h5" fontWeight={800} gutterBottom>
-          {greeting()}، {user?.displayName?.split(" ")[0] ?? ""} 👋
-        </Typography>
+        {/* خوش‌آمدگویی زمان‌محور («صبح بخیر/ظهر بخیر/...») طبق درخواست کارفرما فعلاً
+            حذف شده — ممکن است بعداً دوباره اضافه شود، پس منطقش (که تابع greeting()
+            بود) عمداً نگه داشته نشده تا build با noUnusedLocals تمیز بماند؛ اگر لازم
+            شد برگردد، همان الگوی ساده‌ی سوییچ روی ساعت روز کافی است. */}
         <Typography variant="body2" color="text.secondary">
           عکس فوری وضعیت فعلی سازمان — برای گزارش‌های تفصیلی و فیلترپذیر هر بخش، از منوی سمت راست استفاده کنید.
         </Typography>

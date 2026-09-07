@@ -1,13 +1,41 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Backdrop, Box, Fade, IconButton, Modal, TextField, Tooltip, Typography } from "@mui/material";
 import { CacheProvider, keyframes } from "@emotion/react";
-import { X, Send } from "lucide-react";
+import { X, Send, Paperclip, ImagePlus, Mic, MicOff, CircleX } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { surface, glassBlur, brand, brandGrey } from "../../app/theme/palette";
 import { plainCache } from "../../app/theme/plainCache";
 import { assistantApi, type AssistantHistoryTurn } from "../../lib/api/assistantApi";
+import { useAuthStore } from "../../app/store/authStore";
 import aiIcon from "../../assets/ai-icon.png";
+
+// ---------- Web Speech API — تایپ‌های پایه در lib.dom.d.ts موجودند (Speech
+// RecognitionEvent/ErrorEvent) ولی خودِ کلاس SpeechRecognition و پرچم‌های
+// window.SpeechRecognition/webkitSpeechRecognition تعریف نشده‌اند؛ همین‌جا حداقلِ
+// لازم برایش اعلام می‌شود. یک قابلیت مرورگر-محور و رایگان است (بدون API پولی)،
+// فقط روی مرورگرهای مبتنی بر Chromium به‌خوبی کار می‌کند؛ در بقیه دکمه‌ی میکروفون
+// اصلاً نمایش داده نمی‌شود (رجوع کنید به speechSupported پایین‌تر).
+interface MinimalSpeechRecognition extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+}
+interface SpeechRecognitionConstructor {
+  new (): MinimalSpeechRecognition;
+}
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
 
 // تعداد نوبت‌های اخیر گفتگو که همراه هر پیام جدید برای مدل فرستاده می‌شود — فرانت‌اند
 // منبع حقیقت تاریخچه است (سمت سرور session ذخیره نمی‌شود)، پس همین آرایه‌ی پیام‌های
@@ -16,6 +44,25 @@ const MAX_HISTORY_TURNS = 20;
 
 const FAB_SIZE = { xs: 48, sm: 56 };
 const FAB_OFFSET = { xs: 16, sm: 24 };
+
+// ---------- حباب معرفیِ دستیار هوشمند (فقط یک‌بار در هر نشست ورود) ----------
+// چند ثانیه بعد از بارگذاری داشبورد، یک حباب کوچک بالای دکمه‌ی شناور دستیار
+// هوشمند ظاهر می‌شود تا آن را به کاربر معرفی کند — نه یک مودال (هیچ‌چیزی را
+// مسدود نمی‌کند)، خودش بعد از چند ثانیه محو می‌شود، یا با کلیک روی هر جای صفحه
+// (خودِ حباب، دکمه‌ی شناور، یا هر جای دیگر) زودتر بسته می‌شود. «یک‌بار در هر
+// نشست ورود» عمداً از طریق فلگ hintShown در authStore تضمین می‌شود، نه یک
+// useRef محلی: در حالت توسعه (React StrictMode) افکت‌ها یک‌بار mount/cleanup/
+// mount دوباره می‌شوند؛ یک ref محلی در برابر این چرخه محافظت نمی‌کند و باعث
+// نمایش و بلافاصله محوشدنِ حباب می‌شد (باگ واقعی که دیده شد) — فلگ مشترک در
+// استور، چون به یک instance خاص از کامپوننت وابسته نیست، مقاوم است.
+const HINT_REVEAL_DELAY_MS = 3200;
+const HINT_AUTO_DISMISS_MS = 7000;
+const HINT_TEXT = "من دستیار هوشمند Mindway هستم — هر سوالی درباره‌ی کسب‌وکارت داری بپرس!";
+
+const bubbleIn = keyframes`
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+`;
 
 // پنل دیگر یک popover کوچک نزدیک دکمه نیست — دقیقاً مثل سایدبار (منوی همبرگری در
 // هدر) از لبه‌ی صفحه باز می‌شود، با این تفاوت که سایدبار از راست باز می‌شود و این
@@ -35,6 +82,9 @@ interface ChatMessage {
   id: string;
   role: "assistant" | "user";
   text: string;
+  // فقط برای نمایش محلی پیوستِ کاربر (data URL) — هیچ‌وقت به بک‌اند فرستاده نمی‌شود
+  // (رجوع کنید به assistantApi.chat: فقط یک فلگ hasImage می‌رود، نه این محتوا).
+  imageDataUrl?: string;
 }
 
 const GREETING =
@@ -251,9 +301,21 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         }}
       >
         {isUser ? (
-          <Typography variant="body2" sx={{ whiteSpace: "pre-line", lineHeight: 1.7 }}>
-            {message.text}
-          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: message.imageDataUrl ? 0.75 : 0 }}>
+            {message.imageDataUrl && (
+              <Box
+                component="img"
+                src={message.imageDataUrl}
+                alt="تصویر پیوست‌شده"
+                sx={{ maxWidth: "100%", maxHeight: 160, borderRadius: "10px", objectFit: "cover", display: "block" }}
+              />
+            )}
+            {message.text && (
+              <Typography variant="body2" sx={{ whiteSpace: "pre-line", lineHeight: 1.7 }}>
+                {message.text}
+              </Typography>
+            )}
+          </Box>
         ) : (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.9 }}>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -271,8 +333,21 @@ export default function AssistantWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; name: string } | null>(null);
+  const [listening, setListening] = useState(false);
   const greetedRef = useRef(false);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const recognitionRef = useRef<MinimalSpeechRecognition | null>(null);
+
+  // پشتیبانی مرورگر از Web Speech API فقط یک‌بار (نه هر رندر) بررسی می‌شود — فقط
+  // روی مرورگرهای مبتنی بر Chromium به‌خوبی کار می‌کند؛ در بقیه دکمه‌ی میکروفون
+  // اصلاً رندر نمی‌شود (نه غیرفعال‌نمایش‌داده‌شده) تا رابط کاربری برای آن‌ها شکسته/
+  // گمراه‌کننده به نظر نرسد.
+  const [speechSupported] = useState(
+    () => typeof window !== "undefined" && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  );
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -281,8 +356,119 @@ export default function AssistantWidget() {
     });
   }
 
+  // هر بار که پنل بسته می‌شود، اگر ضبط صدا در حال انجام بود متوقفش کن — تا میکروفون
+  // مرورگر بی‌دلیل روشن نماند.
+  useEffect(() => {
+    if (!open) recognitionRef.current?.stop();
+  }, [open]);
+
+  function toggleListening() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Ctor) return;
+    const recognition = new Ctor();
+    recognition.lang = "fa-IR";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((r) => r[0]?.transcript ?? "")
+        .join(" ")
+        .trim();
+      if (transcript) {
+        setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
+      }
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
+  }
+
+  function handleAttachClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // تا انتخاب دوباره‌ی همان فایل هم رویداد change را دوباره تحریک کند
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setAttachedImage({ dataUrl: reader.result, name: file.name });
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeAttachedImage() {
+    setAttachedImage(null);
+  }
+
+  // بعد از یک تاخیر کوتاه از mount شدن (یعنی از بارگذاری داشبورد بعد از ورود)،
+  // یک‌بار حباب معرفی را نشان می‌ده — مگر این‌که همان لحظه مودال «خلاصه‌ی اجرایی»
+  // باز باشد (overviewOpen در authStore)، که در آن صورت صبر می‌کند تا آن مودال
+  // بسته شود و بلافاصله بعدش نشان می‌دهد، تا دو تا هم‌زمان روی صفحه نباشند.
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    function reveal() {
+      if (cancelled || useAuthStore.getState().hintShown) return;
+      useAuthStore.getState().setHintShown(true);
+      setShowHint(true);
+    }
+
+    function attemptReveal() {
+      if (useAuthStore.getState().overviewOpen) {
+        unsubscribe = useAuthStore.subscribe((state) => {
+          if (!state.overviewOpen) {
+            unsubscribe?.();
+            unsubscribe = null;
+            reveal();
+          }
+        });
+        return;
+      }
+      reveal();
+    }
+
+    const delayTimer = setTimeout(attemptReveal, HINT_REVEAL_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(delayTimer);
+      unsubscribe?.();
+    };
+  }, []);
+
+  // خودکار محو می‌شود بعد از چند ثانیه...
+  useEffect(() => {
+    if (!showHint) return;
+    const t = setTimeout(() => setShowHint(false), HINT_AUTO_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [showHint]);
+
+  // ...یا با یک کلیک روی هر جای صفحه (خودِ حباب، دکمه‌ی شناور، یا هر جای دیگر)
+  // زودتر بسته می‌شود — این یک popover مسدودکننده نیست، پس محدودکردن دامنه‌ی
+  // «کلیک بیرون» به یک المان خاص لازم نیست، هر کلیکی باید ببندش.
+  useEffect(() => {
+    if (!showHint) return;
+    function dismiss() {
+      setShowHint(false);
+    }
+    document.addEventListener("mousedown", dismiss);
+    return () => document.removeEventListener("mousedown", dismiss);
+  }, [showHint]);
+
   function handleOpen() {
     setOpen(true);
+    setShowHint(false);
     if (!greetedRef.current) {
       greetedRef.current = true;
       setMessages([{ id: nextId(), role: "assistant", text: GREETING }]);
@@ -296,7 +482,8 @@ export default function AssistantWidget() {
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || loading) return;
+    // یا متن، یا تصویر — حداقل یکی لازم است (پیام کاملاً خالی ارسال نمی‌شود).
+    if ((!text && !attachedImage) || loading) return;
 
     // تاریخچه‌ی ارسالی به بک‌اند از روی همین پیام‌های نمایشی ساخته می‌شود (پیام
     // خوش‌آمدگویی ثابت ابتدای گفتگو هم به‌عنوان یک نوبت assistant لحاظ می‌شود، چون
@@ -305,12 +492,20 @@ export default function AssistantWidget() {
       .slice(-MAX_HISTORY_TURNS)
       .map((m) => ({ role: m.role, text: m.text }));
 
-    setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
+    const hadImage = !!attachedImage;
+    setMessages((prev) => [
+      ...prev,
+      { id: nextId(), role: "user", text, imageDataUrl: attachedImage?.dataUrl },
+    ]);
     setInput("");
+    setAttachedImage(null);
     setLoading(true);
     scrollToBottom();
     try {
-      const { reply } = await assistantApi.chat(text, history);
+      // hasImage فقط یک فلگ است — محتوای واقعی تصویر هرگز به بک‌اند فرستاده نمی‌شود
+      // (رجوع کنید به کامنت‌های assistantApi.chat و routes/assistant.ts بک‌اند: مدل
+      // فعلی امکان دیدن تصویر ندارد، پس بک‌اند صادقانه همین را می‌گوید، نه وانمود).
+      const { reply } = await assistantApi.chat(text, history, hadImage);
       setMessages((prev) => [...prev, { id: nextId(), role: "assistant", text: reply }]);
     } catch {
       setMessages((prev) => [
@@ -338,6 +533,57 @@ export default function AssistantWidget() {
     //    که هنگام تست دیده شد). چون این زیردرخت دیگر RTL-mirror نمی‌شود، همه‌جا از
     //    «left»/«bottom» فیزیکی استفاده شده، نه inset-inline-*.
     <CacheProvider value={plainCache}>
+      {/* حباب معرفی — فقط یک‌بار در هر نشست ورود، غیرمسدودکننده (نه Modal)، با یک
+          کلیک روی هر جای صفحه یا خودکار بعد از چند ثانیه بسته می‌شود. */}
+      {showHint && !open && (
+        <Box
+          onClick={() => setShowHint(false)}
+          role="status"
+          sx={{
+            position: "fixed",
+            bottom: { xs: FAB_OFFSET.xs + FAB_SIZE.xs + 14, sm: FAB_OFFSET.sm + FAB_SIZE.sm + 16 },
+            left: FAB_OFFSET,
+            zIndex: (theme) => theme.zIndex.modal + 1,
+            maxWidth: 250,
+            cursor: "pointer",
+            animation: `${bubbleIn} .35s cubic-bezier(.2,.8,.2,1) both`,
+            "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+          }}
+        >
+          <Box
+            sx={{
+              position: "relative",
+              px: 2,
+              py: 1.5,
+              borderRadius: "14px",
+              bgcolor: surface.glassStrong,
+              backdropFilter: glassBlur,
+              WebkitBackdropFilter: glassBlur,
+              border: `1px solid ${surface.borderStrong}`,
+              boxShadow: "0 10px 32px rgba(121,0,221,0.25), 0 2px 12px rgba(0,0,0,0.3)",
+            }}
+          >
+            <Typography variant="body2" sx={{ lineHeight: 1.7, fontWeight: 600 }}>
+              {HINT_TEXT}
+            </Typography>
+            {/* دنباله‌ی مثلثی رو به دکمه‌ی شناور، دقیقاً بالای مرکز آن */}
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: -7,
+                left: { xs: FAB_SIZE.xs / 2 - 7, sm: FAB_SIZE.sm / 2 - 7 },
+                width: 14,
+                height: 14,
+                bgcolor: surface.glassStrong,
+                borderInlineEnd: `1px solid ${surface.borderStrong}`,
+                borderBlockEnd: `1px solid ${surface.borderStrong}`,
+                transform: "rotate(45deg)",
+              }}
+            />
+          </Box>
+        </Box>
+      )}
+
       <Tooltip title="دستیار هوشمند" placement="left">
         <IconButton
           onClick={handleOpen}
@@ -478,7 +724,81 @@ export default function AssistantWidget() {
                   flexShrink: 0,
                 }}
               >
+                {/* پیش‌نمایش تصویر پیوست‌شده — قبل از ارسال، با دکمه‌ی حذف */}
+                {attachedImage && (
+                  <Box sx={{ maxWidth: 760, width: "100%", mx: "auto" }}>
+                    <Box
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 1,
+                        p: 0.75,
+                        borderRadius: "10px",
+                        bgcolor: surface.glassHover,
+                        border: `1px solid ${surface.border}`,
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={attachedImage.dataUrl}
+                        alt=""
+                        sx={{ width: 36, height: 36, borderRadius: "6px", objectFit: "cover", flexShrink: 0 }}
+                      />
+                      <Typography variant="caption" sx={{ maxWidth: 160 }} noWrap>
+                        {attachedImage.name}
+                      </Typography>
+                      <IconButton size="small" onClick={removeAttachedImage} aria-label="حذف تصویر پیوست‌شده">
+                        <CircleX size={16} />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                )}
                 <Box sx={{ maxWidth: 760, width: "100%", mx: "auto", display: "flex", alignItems: "flex-end", gap: 1 }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    style={{ display: "none" }}
+                  />
+                  <Tooltip title="پیوست تصویر">
+                    <IconButton
+                      onClick={handleAttachClick}
+                      aria-label="پیوست تصویر"
+                      sx={{
+                        flexShrink: 0,
+                        width: 42,
+                        height: 42,
+                        color: attachedImage ? brand.primary : "text.secondary",
+                        bgcolor: surface.glassHover,
+                        border: `1px solid ${surface.border}`,
+                        "&:hover": { color: "text.primary", bgcolor: surface.borderStrong },
+                      }}
+                    >
+                      {attachedImage ? <ImagePlus size={18} /> : <Paperclip size={18} />}
+                    </IconButton>
+                  </Tooltip>
+                  {speechSupported && (
+                    <Tooltip title={listening ? "توقف ضبط صدا" : "ورودی صوتی"}>
+                      <IconButton
+                        onClick={toggleListening}
+                        aria-label={listening ? "توقف ضبط صدا" : "شروع ورودی صوتی"}
+                        sx={{
+                          flexShrink: 0,
+                          width: 42,
+                          height: 42,
+                          color: listening ? "#fff" : "text.secondary",
+                          bgcolor: listening ? "#F87171" : surface.glassHover,
+                          border: `1px solid ${listening ? "#F87171" : surface.border}`,
+                          animation: listening ? `${pulseGlow} 1.4s ease-in-out infinite` : "none",
+                          "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+                          "&:hover": { bgcolor: listening ? "#EF5350" : surface.borderStrong },
+                        }}
+                      >
+                        {listening ? <MicOff size={18} /> : <Mic size={18} />}
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   <TextField
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -488,7 +808,7 @@ export default function AssistantWidget() {
                         handleSend();
                       }
                     }}
-                    placeholder="سوال خود را بپرسید…"
+                    placeholder={listening ? "در حال شنیدن…" : "سوال خود را بپرسید…"}
                     size="small"
                     fullWidth
                     multiline
@@ -502,7 +822,7 @@ export default function AssistantWidget() {
                   />
                   <IconButton
                     onClick={handleSend}
-                    disabled={!input.trim() || loading}
+                    disabled={(!input.trim() && !attachedImage) || loading}
                     aria-label="ارسال پیام"
                     sx={{
                       flexShrink: 0,

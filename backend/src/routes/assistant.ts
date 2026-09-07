@@ -644,6 +644,18 @@ export async function generateReply(message: string, history: ChatTurn[] = []): 
   }
 }
 
+// اگر پیام کاربر یک تصویر پیوست‌شده داشته باشد، صادقانه اعلام می‌کنیم که فعلاً
+// امکان دیدن/تحلیل تصویر نداریم — به‌جای وانمود کردن به تحلیل چیزی که واقعاً دیده
+// نمی‌شود. مدل فعلی («config.groqModel»، یعنی openai/gpt-oss-120b) فقط متنی است؛
+// مدل‌های vision-capable گروک (Llama 4 Scout/Maverick) طبق مستندات فعلی گروک یا
+// deprecated شده‌اند یا وضعیت‌شان روی سطح رایگان نامطمئن است (رجوع کنید به گزارش
+// نهایی) — پس به‌جای گره‌زدن این قابلیت به یک مدل که ممکن است در عمل خطا بدهد یا
+// در سطح رایگان در دسترس نباشد، این مسیر عمداً بدون تماس با Groq و بدون ارسال/
+// ذخیره‌ی بایت‌های تصویر به هیچ‌کجا (even سمت سرور لاگ نمی‌شود) کوتاه می‌شود.
+const IMAGE_UNAVAILABLE_REPLY =
+  "فعلاً نمی‌تونم تصویر رو ببینم و تحلیلش کنم — این قابلیت هنوز به مدل زبانی این دستیار وصل نشده. " +
+  "اگر سوالت رو به‌صورت متنی بنویسی، خوشحال می‌شم کمک کنم.";
+
 assistantRouter.post("/chat", async (req, res) => {
   const message = typeof req.body?.message === "string" ? req.body.message : "";
   const rawHistory: unknown[] = Array.isArray(req.body?.history) ? (req.body.history as unknown[]) : [];
@@ -657,6 +669,237 @@ assistantRouter.post("/chat", async (req, res) => {
     )
     .map((h) => ({ role: h.role, text: h.text }));
 
+  // فرانت‌اند عمداً فقط یک فلگ boolean می‌فرستد، نه بایت‌های واقعی تصویر (data URL) —
+  // چون این مسیر محتوای تصویر را هیچ‌جا استفاده/فوروارد نمی‌کند، فرستادنش فقط حجم
+  // درخواست را بی‌دلیل بالا می‌برد (و می‌توانست به محدودیت اندازه‌ی express.json
+  // بخورد). اگر این قابلیت در آینده به یک مدل vision-capable واقعی وصل شد، همین‌جا
+  // باید data URL واقعی هم اضافه/خوانده شود.
+  const hasImage = req.body?.hasImage === true;
+  if (hasImage) {
+    res.json({ reply: IMAGE_UNAVAILABLE_REPLY });
+    return;
+  }
+
   const result = await generateReply(message, history);
+  res.json(result);
+});
+
+// ============================================================================
+// بخش ۵: «تحلیل کلی اجرایی» — GET /api/assistant/overview
+// ============================================================================
+// درست بعد از ورود موفق، فرانت‌اند یک‌بار (فقط یک‌بار در هر نشست ورود — رجوع کنید
+// به authStore.ts فرانت‌اند برای فلگ justLoggedIn) این نقطه‌ی پایانی را صدا می‌زند
+// تا یک مودال «خلاصه‌ی اجرایی» با لحن هیئت‌مدیره نشان بدهد: چند KPI کلیدی، چند
+// مقایسه‌ی معنادار (این ماه/ماه قبل، سال/هدف و ...)، و چند نکته‌ی کوتاه تحلیلی.
+// برخلاف /chat که خروجی‌اش متن آزاد (Markdown) است، اینجا فرانت‌اند باید کارت‌های
+// مجزا رندر کند، پس از مدل یک JSON *ساختاریافته* با شکل ثابت خواسته می‌شود
+// (response_format: json_object). زمینه‌ی داده همان gatherLiveContext() + همان
+// یادداشت‌های مدیریتی commentsContext() است — هیچ کوئری/منطق تجمیعی جدیدی اینجا
+// تعریف نشده، فقط قالب‌بندی خروجی برای این مصرف‌کننده‌ی خاص فرق می‌کند.
+
+export interface OverviewKpi {
+  label: string;
+  value: string;
+  trendPct: number | null;
+  trendLabel: string | null;
+}
+
+export interface OverviewComparisonSide {
+  label: string;
+  value: string;
+}
+
+export interface OverviewComparison {
+  label: string;
+  a: OverviewComparisonSide;
+  b: OverviewComparisonSide;
+  insight: string;
+}
+
+export interface OverviewData {
+  summary: string;
+  kpis: OverviewKpi[];
+  comparisons: OverviewComparison[];
+  highlights: string[];
+}
+
+export type OverviewResult = OverviewData | { error: string };
+
+const OVERVIEW_JSON_SHAPE = `{
+  "summary": "یک جمله‌ی کوتاه (حداکثر ۲۵-۳۰ کلمه) — جمع‌بندی کلی وضعیت این ماهِ شرکت",
+  "kpis": [
+    { "label": "عنوان کوتاه KPI", "value": "مقدار از پیش قالب‌بندی‌شده (دقیقاً کپی‌شده از داده‌های زمینه، نه بازمحاسبه‌شده)", "trendPct": 3.2, "trendLabel": "نسبت به ماه قبل" }
+  ],
+  "comparisons": [
+    {
+      "label": "عنوان کوتاه مقایسه (مثلاً «فروش: این ماه در برابر ماه قبل»)",
+      "a": { "label": "این ماه", "value": "مقدار از پیش قالب‌بندی‌شده" },
+      "b": { "label": "ماه قبل", "value": "مقدار از پیش قالب‌بندی‌شده" },
+      "insight": "یک جمله‌ی کوتاه: این مقایسه چه معنایی برای مدیرعامل دارد"
+    }
+  ],
+  "highlights": ["یک نکته‌ی کوتاه تحلیلی/هشدار/تصمیم‌ساز", "..."]
+}`;
+
+function buildOverviewSystemInstruction(): string {
+  return `تو دستیار ارشد تحلیل کسب‌وکار یک شرکت پخش مواد غذایی هستی و داری برای مدیرعامل، درست بعد از
+ورودش به داشبورد مدیریتی، یک «خلاصه‌ی اجرایی» یک‌نگاهی آماده می‌کنی — دقیقاً همان چیزی که یک رئیس دفتر
+باهوش و مختصرگو روی میز مدیرعامل می‌گذارد، نه یک گزارش تحلیلی مفصل. لحن باید کاملاً کلی، مختصر و مفید باشد.
+
+# داده‌های زنده‌ی سازمان (در همین لحظه از دیتابیس‌های واقعی خوانده شده)
+${gatherLiveContext()}
+
+# یادداشت‌های مدیریتی (کامنت‌هایی که یک انسان — مدیر — روی هشدارها/KPIهای مشخص گذاشته)
+اگر یکی از این یادداشت‌ها به موضوعی مرتبط با یک KPI/مقایسه/نکته اشاره دارد، همان برداشت انسانی را در
+نظر بگیر (مثلاً اگر یادداشتی بگوید فلان هشدار قبلاً دستی پیگیری/حل شده، آن را به‌عنوان یک ریسک باز در
+highlights نیاور یا اگر آوردی همین را در متنش منعکس کن).
+${commentsContext()}
+
+# قالب خروجی — فقط و فقط یک شیء JSON معتبر، دقیقاً با این شکل (کلیدها/نوع داده‌ها تغییرناپذیرند):
+${OVERVIEW_JSON_SHAPE}
+
+# قواعد سخت‌گیرانه‌ی تولید JSON
+- خروجی باید یک شیء JSON خام و معتبر باشد — نه در بلاک کد Markdown (بدون \`\`\`)، نه با هیچ متن قبل/بعدش.
+- "value" و مقادیر "a.value"/"b.value" باید دقیقاً همان رشته‌های از پیش قالب‌بندی‌شده‌ای باشند که در «داده‌های
+  زنده» بالا آمده‌اند (مثلاً «۱۲۵٫۳ میلیارد ریال» یا «٪+3.2») — خودت هیچ عدد خامی را بازمحاسبه یا گرد نکن،
+  فقط از همان رشته‌های آماده در متن بالا کپی/استخراج کن.
+- "trendPct" باید یک عدد جاوااسکریپتی معمولی باشد (مثلاً 3.2 یا -12.5)، نه رشته، نه با رقم فارسی، نه با علامت
+  ٪. اگر روند/درصد مشخصی در داده‌ی بالا برای آن KPI وجود ندارد، مقدار trendPct و trendLabel را null بگذار.
+- دقیقاً بین ۴ تا ۶ آیتم در "kpis" بیاور — مهم‌ترین ارقامی که یک عضو هیئت‌مدیره در نگاه اول می‌خواهد ببیند
+  (فروش، سود خالص، نقدینگی، مطالبات/نرخ وصول، و در صورت وجود داده‌ی معنادار، پرسنل یا ROI).
+- دقیقاً بین ۲ تا ۳ مقایسه‌ی معنادار در "comparisons" بیاور (مثلاً این ماه در برابر ماه قبل، این ماه در برابر
+  همین ماه سال قبل، یا تحقق بودجه‌ی سال جاری در برابر هدف) — فقط مقایسه‌هایی که واقعاً در داده‌ی بالا وجود دارند.
+- دقیقاً بین ۴ تا ۶ نکته‌ی کوتاه (یک جمله‌ای) در "highlights" بیاور: ریسک‌های واقعی، روندهای قابل توجه، یا
+  چیزهایی که ارزش یک تصمیم مدیریتی را دارند — نه تکرار همان ارقام KPI بالا با کلمات دیگر.
+- فقط بر اساس داده‌های بالا بنویس؛ هیچ عدد یا واقعیتی از خودت نساز. اگر داده‌ای برای یک بخش کافی نبود،
+  آن بخش را کوتاه‌تر بیاور (نه این‌که عدد جعلی بسازی).
+- همه‌ی متن‌ها (label ها، insight، highlights، summary) به فارسی روان و رسمی-صمیمی، دقیقاً هم‌لحن با بقیه‌ی
+  متن‌های این برنامه؛ کوتاه و بدون مقدمه‌چینی.`;
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function nonEmptyString(v: unknown, maxLen = 240): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  return trimmed.length > maxLen ? trimmed.slice(0, maxLen) : trimmed;
+}
+
+function parseOverviewKpi(raw: unknown): OverviewKpi | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const label = nonEmptyString(r.label, 60);
+  const value = nonEmptyString(r.value, 60);
+  if (!label || !value) return null;
+  return {
+    label,
+    value,
+    trendPct: isFiniteNumber(r.trendPct) ? r.trendPct : null,
+    trendLabel: nonEmptyString(r.trendLabel, 60),
+  };
+}
+
+function parseOverviewComparisonSide(raw: unknown): OverviewComparisonSide | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const label = nonEmptyString(r.label, 40);
+  const value = nonEmptyString(r.value, 60);
+  if (!label || !value) return null;
+  return { label, value };
+}
+
+function parseOverviewComparison(raw: unknown): OverviewComparison | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const label = nonEmptyString(r.label, 80);
+  const a = parseOverviewComparisonSide(r.a);
+  const b = parseOverviewComparisonSide(r.b);
+  const insight = nonEmptyString(r.insight, 220);
+  if (!label || !a || !b || !insight) return null;
+  return { label, a, b, insight };
+}
+
+// اعتبارسنجی دفاعی خروجی خام مدل — مدل رایگان روی Groq گاهی ساختار را کمی می‌شکند
+// (یک آیتم ناقص، کلید غلط‌نویسی‌شده و...)؛ به‌جای رد کل پاسخ به خاطر یک آیتم خراب،
+// هر آیتم را جداگانه اعتبارسنجی می‌کنیم و فقط آیتم‌های معتبر را نگه می‌داریم. اگر
+// در نهایت داده‌ی معناداری باقی نماند (نه summary، نه هیچ kpi/highlight معتبری)،
+// کل نتیجه را نامعتبر در نظر می‌گیریم تا فرانت‌اند به‌جای مودال نیمه‌خالی، پیام خطا نشان بدهد.
+function parseOverviewJson(raw: unknown): OverviewData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+
+  const summary = nonEmptyString(r.summary, 300) ?? "";
+  const kpis = Array.isArray(r.kpis)
+    ? r.kpis.map(parseOverviewKpi).filter((k): k is OverviewKpi => k !== null).slice(0, 6)
+    : [];
+  const comparisons = Array.isArray(r.comparisons)
+    ? r.comparisons.map(parseOverviewComparison).filter((c): c is OverviewComparison => c !== null).slice(0, 3)
+    : [];
+  const highlights = Array.isArray(r.highlights)
+    ? r.highlights.map((h) => nonEmptyString(h, 260)).filter((h): h is string => h !== null).slice(0, 6)
+    : [];
+
+  if (!summary && kpis.length === 0 && highlights.length === 0) return null;
+  if (kpis.length === 0 || highlights.length === 0) return null;
+
+  return { summary, kpis, comparisons, highlights };
+}
+
+/**
+ * *** تولید «خلاصه‌ی اجرایی» ساختاریافته (Groq، json_object mode) ***
+ * برخلاف generateReply هیچ تاریخچه‌ای ندارد — هر بار یک درخواست تازه و مستقل، دقیقاً
+ * منطبق بر عکس فوری لحظه‌ی فراخوانی از داده‌های زنده.
+ */
+export async function generateOverview(): Promise<OverviewResult> {
+  const ai = getClient();
+  if (!ai) {
+    console.error("[assistant] GROQ_API_KEY تنظیم نشده — درخواست خلاصه‌ی اجرایی رد شد.");
+    return { error: FALLBACK_UNAVAILABLE };
+  }
+
+  try {
+    const response = await ai.chat.completions.create({
+      model: config.groqModel,
+      temperature: 0.4,
+      response_format: { type: "json_object" },
+      messages: [{ role: "system", content: buildOverviewSystemInstruction() }],
+    });
+
+    const content = (response.choices[0]?.message?.content ?? "").trim();
+    if (!content) {
+      console.error("[assistant] خلاصه‌ی اجرایی: پاسخ خالی از Groq.");
+      return { error: FALLBACK_UNAVAILABLE };
+    }
+
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(content);
+    } catch (parseErr) {
+      console.error("[assistant] خلاصه‌ی اجرایی: JSON نامعتبر از مدل:", parseErr);
+      return { error: FALLBACK_UNAVAILABLE };
+    }
+
+    const data = parseOverviewJson(parsedJson);
+    if (!data) {
+      console.error("[assistant] خلاصه‌ی اجرایی: شکل JSON دریافتی با قرارداد مورد انتظار مطابقت نداشت.");
+      return { error: FALLBACK_UNAVAILABLE };
+    }
+
+    return data;
+  } catch (err) {
+    if (err instanceof Groq.APIError) {
+      console.error(`[assistant] خطای Groq API در خلاصه‌ی اجرایی (status ${err.status}):`, err.message);
+    } else {
+      console.error("[assistant] خطای غیرمنتظره در تولید خلاصه‌ی اجرایی:", err);
+    }
+    return { error: FALLBACK_UNAVAILABLE };
+  }
+}
+
+assistantRouter.get("/overview", async (_req, res) => {
+  const result = await generateOverview();
   res.json(result);
 });

@@ -19,7 +19,9 @@ export default function ByCenterChart({ data, valueMode }: Props) {
 
   const option = {
     textStyle: baseTextStyle,
-    grid: { top: 10, right: 20, bottom: 10, left: 130 },
+    // containLabel:true — رجوع کنید به همین توضیح در SimpleBarChart.tsx: فضای محور Y
+    // (نام مرکز فروش) به‌جای حدس ثابت، خودکار بر اساس طول واقعی برچسب محاسبه می‌شود.
+    grid: { top: 10, right: 20, bottom: 10, left: 12, containLabel: true },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },

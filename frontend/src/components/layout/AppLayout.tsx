@@ -6,6 +6,7 @@ import Header from "./Header";
 import GlobalFilterBar from "./GlobalFilterBar";
 import DemoBanner from "./DemoBanner";
 import AssistantWidget from "../assistant/AssistantWidget";
+import ExecutiveOverviewModal from "../assistant/ExecutiveOverviewModal";
 import { brandGrey } from "../../app/theme/palette";
 import ampersand from "../../assets/logo-ampersand.png";
 
@@ -66,6 +67,7 @@ export default function AppLayout() {
         </Typography>
       </Box>
       <AssistantWidget />
+      <ExecutiveOverviewModal />
     </Box>
   );
 }

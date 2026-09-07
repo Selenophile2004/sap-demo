@@ -39,7 +39,7 @@ export default function CustomerScatterChart({ data }: Props) {
 
   const option = {
     textStyle: baseTextStyle,
-    grid: { top: 30, right: 20, bottom: 40, left: 60 },
+    grid: { top: 40, right: 20, bottom: 40, left: 60 },
     legend: {
       top: 0,
       textStyle: { color: baseTextStyle.color, fontFamily: "Vazirmatn" },

@@ -20,7 +20,7 @@ export default function HomeTrendChart({ data }: Props) {
 
   const option = {
     textStyle: baseTextStyle,
-    grid: { top: 44, right: 20, bottom: 30, left: 65 },
+    grid: { top: 40, right: 20, bottom: 30, left: 65 },
     legend: { top: 0, textStyle: { color: baseTextStyle.color, fontFamily: "Vazirmatn" } },
     tooltip: { trigger: "axis", ...tooltipCommon, valueFormatter: (v: number) => formatCompactRial(v) },
     xAxis: { type: "category", data: labels, ...axisCommon },

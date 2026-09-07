@@ -15,7 +15,11 @@ export default function SimpleBarChart({ labels, values, valueFormatter, color, 
   const { baseTextStyle, axisCommon, tooltipCommon } = useEchartsTheme();
   const option = {
     textStyle: baseTextStyle,
-    grid: { top: 10, right: 20, bottom: 10, left: 130 },
+    // containLabel:true به‌جای یک left ثابت حدسی — فضای لازم برای برچسب‌های محور Y
+    // (که طولشان بسته به داده متغیر است، مثلاً نام مشتری/مرکز) را خودِ ECharts
+    // دقیقاً بر اساس محتوای واقعی محاسبه می‌کند، پس نه برچسب بلند بریده/همپوشان
+    // می‌شود و نه برای برچسب کوتاه فضای خالی زیادی حروم می‌شود.
+    grid: { top: 10, right: 20, bottom: 10, left: 12, containLabel: true },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
