@@ -459,8 +459,11 @@ ${commentsContext()}
 
 # رفتن به صفحه‌ی مشخص (تابع navigate_to_section)
 اگر کاربر آشکارا خواست به بخش/گزارش خاصی از برنامه برود یا داده‌ی آن را ببیند/نشانش بدهی،
-تابع navigate_to_section را با مقدار «page» مناسب فراخوانی کن، و همزمان یک جمله‌ی کوتاه تاییدی هم
-در پاسخ متنی‌ات بنویس (مثلاً «الان می‌برمت به صفحه‌ی مطالبات.»). صفحات موجود:
+تابع navigate_to_section را **واقعاً و فقط از طریق مکانیزم function calling** فراخوانی کن —
+هرگز چیزی شبیه به یک تگ یا فراخوانی تابع را به‌صورت متن خام در پاسخت ننویس (مثلاً هرگز چیزی شبیه
+navigate_to_section با پرانتز/تگ را در پاسخ متنی چاپ نکن؛ کاربر هرگز نباید نحو خام فراخوانی تابع
+را ببیند). همزمان یک جمله‌ی کوتاه تاییدی هم در پاسخ متنی‌ات بنویس (مثلاً «الان می‌برمت به صفحه‌ی
+مطالبات.»). صفحات موجود:
 ${navList}
 اگر سوال کاربر صرفاً یک سوال معمولی است (نه درخواست رفتن به صفحه)، این تابع را فراخوانی نکن.
 
@@ -551,6 +554,29 @@ export async function generateReply(message: string, history: ChatTurn[] = []): 
     }
 
     let reply = (choice?.content ?? "").trim();
+
+    // بعضی مدل‌ها (به‌خصوص روی Groq) گاهی به‌جای فراخوانی واقعی تابع از طریق مکانیزم
+    // function calling، یک تگ شبه-XML شبیه <navigate_to_section page="..."> را
+    // مستقیم داخل متن پاسخ می‌نویسند — یعنی همان چیزی که در دستورالعمل بالا صریحاً
+    // ازش منع شده، ولی مدل گاهی رعایت نمی‌کند. این یک شبکه‌ی ایمنی است: اگر چنین
+    // تگی در متن پاسخ دیده شد، مقدار «page» را از همانجا استخراج می‌کنیم (اگر
+    // navigateTo از راه واقعی tool_calls قبلاً ست نشده باشد) و خودِ تگ خام را از
+    // متنی که به کاربر نشان داده می‌شود پاک می‌کنیم — کاربر هرگز نباید نحو خام
+    // فراخوانی تابع را ببیند.
+    const leakedTagMatch = reply.match(/<navigate_to_section\s+page=["']([^"']+)["']\s*\/?>/i);
+    if (leakedTagMatch) {
+      if (!navigateTo) {
+        const match = NAV_PAGES.find((p) => p.value === leakedTagMatch[1]);
+        if (match) navigateTo = match.value;
+      }
+      reply = reply
+        .replace(/<navigate_to_section\s+page=["'][^"']+["']\s*\/?>/gi, "")
+        .replace(/^>\s*\*{0,2}(لینک|link)\*{0,2}:?\s*$/gim, "")
+        .replace(/^>\s*$/gim, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    }
+
     if (!reply) {
       if (navigateTo) {
         const target = NAV_PAGES.find((p) => p.value === navigateTo);
