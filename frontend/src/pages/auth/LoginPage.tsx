@@ -91,13 +91,13 @@ export default function LoginPage() {
           sx={{
             position: "absolute",
             top: "50%",
-            left: { sm: "-22%", md: "-9%", lg: "-4%" },
+            right: { sm: "-22%", md: "-9%", lg: "-4%" },
             width: { sm: "62vw", md: "44vw" },
             maxWidth: 640,
             height: "auto",
             transform: "translateY(-50%)",
-            maskImage: "radial-gradient(ellipse 60% 55% at 38% 50%, black 40%, transparent 78%)",
-            WebkitMaskImage: "radial-gradient(ellipse 60% 55% at 38% 50%, black 40%, transparent 78%)",
+            maskImage: "radial-gradient(ellipse 60% 55% at 62% 50%, black 40%, transparent 78%)",
+            WebkitMaskImage: "radial-gradient(ellipse 60% 55% at 62% 50%, black 40%, transparent 78%)",
             animation: `${breathe} 7s ease-in-out infinite`,
             "@media (prefers-reduced-motion: reduce)": { animation: "none", opacity: 0.16 },
           }}
@@ -105,7 +105,7 @@ export default function LoginPage() {
         <Box
           sx={{
             position: "absolute",
-            left: { sm: "7%", md: "10%", lg: "13%" },
+            right: { sm: "7%", md: "10%", lg: "13%" },
             top: "50%",
             transform: "translateY(96px)",
             maxWidth: 300,
@@ -162,23 +162,20 @@ export default function LoginPage() {
           alt="ILIA"
           sx={{ width: 64, height: 75, objectFit: "contain", mx: "auto", mb: 2.5, display: "block" }}
         />
-        <Typography variant="h5" fontWeight={800} gutterBottom>
-          خوش آمدید
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-          برای ورود به داشبورد مدیریتی Mindway، اطلاعات کاربری خود را وارد کنید
+        <Typography variant="h5" fontWeight={800} sx={{ mb: 4 }}>
+          Welcome
         </Typography>
 
         <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField
-            label="نام کاربری"
+            label="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoFocus
             fullWidth
           />
           <TextField
-            label="رمز عبور"
+            label="Password"
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
