@@ -1,5 +1,4 @@
 import { Router } from "express";
-import Groq from "groq-sdk";
 import { config } from "../config";
 import { salesDb, receivablesDb, pnlDb, hrDb, financeDb, inventoryDb } from "../db";
 import { commentsDb } from "../db/commentsDb";
@@ -7,17 +6,16 @@ import { daysSince, lastCompleteMonth, previousYearMonth } from "../lib/jalali";
 import { buildPresentation, type AnalyticsPresentation } from "../analytics/presentation";
 import { gatherAnalyticsSnapshot } from "../analytics/snapshot";
 import { METRIC_CATALOG } from "../analytics/metricCatalog";
+import { createAiProvider } from "../ai/providerFactory";
+import { AiProviderError, type AiMessage, type AiProvider } from "../ai/provider";
 
 export const assistantRouter = Router();
 
 /**
- * «دستیار هوشمند» — نسخه‌ی سوم، متصل به Groq واقعی (API سازگار با OpenAI؛ جایگزین
- * نسخه‌ی دوم که به Gemini متصل بود — کلیدهای فعلی Gemini با فرمت جدید «AQ.» هستند
- * که مسیر REST/SDK استاندارد گوگل فعلاً رد می‌کند، یک باگ تاییدشده‌ی سمت گوگل، نه
- * کد ما؛ رجوع کنید به کامنت‌های config.ts). این ماژول هر بار که کاربر پیام
+ * «دستیار هوشمند» — مستقل از شرکت ارائه‌دهنده مدل. این ماژول هر بار که کاربر پیام
  * می‌فرستد، یک «عکس فوری» تازه از داده‌های زنده‌ی سازمان (دقیقاً با همان کوئری‌ها/
  * منطق تجمیعی routes/home.ts، routes/finance.ts و routes/alerts.ts) به‌علاوه‌ی همه‌ی
- * یادداشت‌های مدیریتی ثبت‌شده در commentsDb را به‌عنوان زمینه به مدل زبانی Groq
+ * یادداشت‌های مدیریتی ثبت‌شده در commentsDb را به‌عنوان زمینه به AiProvider فعال
  * می‌دهد و از آن می‌خواهد بر همان مبنا (و نه از حافظه‌ی خودش) پاسخ بدهد.
  */
 
@@ -436,7 +434,7 @@ function gatherLiveContext(): string {
 // بخش ۲: فهرست صفحات این برنامه (frontend/src/app/menuConfig.tsx) با توضیح یک‌خطی
 // از محتوای هرکدام — قبلاً به‌عنوان schema یک تابع function-calling («navigate_to_
 // section») هم به مدل داده می‌شد تا مستقیماً کاربر را ناوبری کند؛ آن مکانیزم حذف
-// شده (این مدل رایگان روی Groq در عمل در فراخوانی واقعی آن غیرقابل‌اعتماد بود —
+// شده (مدل‌های مختلف در فراخوانی واقعی این ابزار رفتار یکسانی نداشتند —
 // گاهی یک تگ شبه-XML جعلی داخل متن می‌نوشت، گاهی فقط ادعای انجام کار می‌کرد بدون
 // فراخوانی واقعی). همین لیست حالا فقط به‌عنوان دانشِ زمینه‌ای در system prompt
 // استفاده می‌شود تا مدل بتواند در متن پاسخ، کاربر را با جمله‌ی معمولی به صفحه‌ی
@@ -566,20 +564,24 @@ ${navList}
 }
 
 // ============================================================================
-// بخش ۴: فراخوانی واقعی Groq (API سازگار با OpenAI) + مدیریت خطا
+// بخش ۴: فراخوانی Provider مستقل + مدیریت خطای یکپارچه
 // ============================================================================
 
-// «groq-sdk» بر خلاف «@google/genai» یک بسته‌ی ESM-محض نیست — هم CJS و هم ESM را
-// build می‌کند (به package.json آن رجوع کنید)، پس import ایستای معمولی در بالای
-// همین فایل بدون نیاز به import() پویا یا resolution-mode جداگانه کار می‌کند.
-
-let cachedClient: Groq | null = null;
-function getClient(): Groq | null {
-  if (!config.aiEnabled || !config.groqApiKey) return null;
-  if (!cachedClient) {
-    cachedClient = new Groq({ apiKey: config.groqApiKey, timeout: 15_000, maxRetries: 1 });
+let cachedProvider: AiProvider | null | undefined;
+function getProvider(): AiProvider | null {
+  if (cachedProvider === undefined) {
+    cachedProvider = createAiProvider(config.ai);
   }
-  return cachedClient;
+  return cachedProvider;
+}
+
+function logProviderFailure(context: string, error: unknown) {
+  if (error instanceof AiProviderError) {
+    const status = error.status ? `, status ${error.status}` : "";
+    console.error(`[assistant] ${context} (${error.provider}${status}):`, error.message);
+    return;
+  }
+  console.error(`[assistant] ${context}:`, error);
 }
 
 const FALLBACK_UNAVAILABLE = "دستیار موقتاً در دسترس نیست — چند لحظه دیگه دوباره امتحان کن.";
@@ -595,7 +597,7 @@ export interface AssistantReply {
 }
 
 /**
- * *** نقطه‌ی اتصال به هوش مصنوعی واقعی (Groq، API سازگار با OpenAI) ***
+ * *** نقطه‌ی اتصال به هوش مصنوعی واقعی، مستقل از Provider ***
  * ورودی: پیام جدید کاربر + تاریخچه‌ی گفتگو (فرانت‌اند منبع حقیقت تاریخچه است، این
  * تابع هیچ session سمت سرور نگه نمی‌دارد). خروجی: فقط متن پاسخ — بدون هیچ مکانیزم
  * ناوبری خودکار (رجوع کنید به کامنت بالای NAV_PAGES: راهنمایی صفحه فقط متنی است).
@@ -604,35 +606,31 @@ export async function generateReply(message: string, history: ChatTurn[] = []): 
   const trimmed = message.trim();
   if (!trimmed) return { reply: "لطفاً سوال خود را بنویسید." };
 
-  const ai = getClient();
+  const ai = getProvider();
   if (!ai) {
     // کلید تنظیم نشده — این را فقط سمت سرور لاگ می‌کنیم، به کاربر همان پیام عمومی
     // «موقتاً در دسترس نیست» را می‌دهیم تا هیچ جزییات پیکربندی به فرانت‌اند درز نکند.
-    console.error("[assistant] GROQ_API_KEY تنظیم نشده — درخواست دستیار رد شد.");
+    console.warn(`[assistant] AI غیرفعال است یا کلید Provider «${config.ai.provider}» تنظیم نشده است.`);
     return { reply: FALLBACK_UNAVAILABLE };
   }
 
   // آخرین ۲۰ نوبت گفتگو کافی است (طبق طراحی: حافظه‌ی مکالمه، نه آرشیو کامل).
   // شکل پیام‌ها دقیقاً همان آرایه‌ی messages سازگار با OpenAI: یک پیام system
   // (زمینه‌ی زنده + یادداشت‌های مدیریتی + قواعد پاسخ)، بعد تاریخچه، بعد پیام کاربر.
-  const historyMessages: Groq.Chat.ChatCompletionMessageParam[] = history.slice(-20).map((h) => ({
+  const historyMessages: AiMessage[] = history.slice(-20).map((h) => ({
     role: h.role === "assistant" ? "assistant" : "user",
     content: h.text,
   }));
-  const messages: Groq.Chat.ChatCompletionMessageParam[] = [
+  const messages: AiMessage[] = [
     { role: "system", content: buildSystemInstruction() },
     ...historyMessages,
     { role: "user", content: trimmed },
   ];
 
   try {
-    const response = await ai.chat.completions.create({
-      model: config.groqModel,
+    let reply = await ai.complete({
       messages,
     });
-
-    const choice = response.choices[0]?.message;
-    let reply = (choice?.content ?? "").trim();
 
     if (!reply) {
       reply = "متوجه سوال نشدم؛ می‌شه با جزئیات بیشتری دوباره بپرسید؟";
@@ -642,22 +640,16 @@ export async function generateReply(message: string, history: ChatTurn[] = []): 
   } catch (err) {
     // خطای واقعی فقط سمت سرور لاگ می‌شود (برای دیباگ خودمان) — نه در پاسخ به فرانت‌اند،
     // تا نه جزییات فنی/کلید API درز کند و نه کاربر با stack trace خام روبه‌رو شود.
-    if (err instanceof Groq.APIError) {
-      console.error(`[assistant] خطای Groq API (status ${err.status}):`, err.message);
-    } else {
-      console.error("[assistant] خطای غیرمنتظره در فراخوانی دستیار:", err);
-    }
+    logProviderFailure("فراخوانی مدل ناموفق بود", err);
     return { reply: FALLBACK_UNAVAILABLE };
   }
 }
 
 // اگر پیام کاربر یک تصویر پیوست‌شده داشته باشد، صادقانه اعلام می‌کنیم که فعلاً
 // امکان دیدن/تحلیل تصویر نداریم — به‌جای وانمود کردن به تحلیل چیزی که واقعاً دیده
-// نمی‌شود. مدل فعلی («config.groqModel»، یعنی openai/gpt-oss-120b) فقط متنی است؛
-// مدل‌های vision-capable گروک (Llama 4 Scout/Maverick) طبق مستندات فعلی گروک یا
-// deprecated شده‌اند یا وضعیت‌شان روی سطح رایگان نامطمئن است (رجوع کنید به گزارش
-// نهایی) — پس به‌جای گره‌زدن این قابلیت به یک مدل که ممکن است در عمل خطا بدهد یا
-// در سطح رایگان در دسترس نباشد، این مسیر عمداً بدون تماس با Groq و بدون ارسال/
+// نمی‌شود. مدل پیش‌فرض فعلی فقط متنی است و Interface فعلی Provider نیز عمداً فقط
+// پیام متنی می‌پذیرد. تا زمانی که قرارداد vision جداگانه اضافه نشده، این مسیر
+// بدون تماس با Provider و بدون ارسال/
 // ذخیره‌ی بایت‌های تصویر به هیچ‌کجا (even سمت سرور لاگ نمی‌شود) کوتاه می‌شود.
 const IMAGE_UNAVAILABLE_REPLY =
   "فعلاً نمی‌تونم تصویر رو ببینم و تحلیلش کنم — این قابلیت هنوز به مدل زبانی این دستیار وصل نشده. " +
@@ -709,10 +701,13 @@ assistantRouter.post("/presentation", (req, res) => {
 });
 
 assistantRouter.get("/status", (_req, res) => {
+  const ai = getProvider();
   res.json({
-    languageModelAvailable: config.aiEnabled && Boolean(config.groqApiKey),
+    languageModelAvailable: Boolean(ai),
     deterministicAnalyticsAvailable: true,
-    mode: config.aiEnabled && config.groqApiKey ? "hybrid" : "local",
+    mode: ai ? "hybrid" : "local",
+    provider: config.ai.provider,
+    model: config.ai.model || null,
   });
 });
 
@@ -858,7 +853,7 @@ function parseOverviewComparison(raw: unknown): OverviewComparison | null {
   return { label, a, b, insight };
 }
 
-// اعتبارسنجی دفاعی خروجی خام مدل — مدل رایگان روی Groq گاهی ساختار را کمی می‌شکند
+// اعتبارسنجی دفاعی خروجی خام مدل — هر Provider ممکن است ساختار را کمی بشکند
 // (یک آیتم ناقص، کلید غلط‌نویسی‌شده و...)؛ به‌جای رد کل پاسخ به خاطر یک آیتم خراب،
 // هر آیتم را جداگانه اعتبارسنجی می‌کنیم و فقط آیتم‌های معتبر را نگه می‌داریم. اگر
 // در نهایت داده‌ی معناداری باقی نماند (نه summary، نه هیچ kpi/highlight معتبری)،
@@ -925,28 +920,26 @@ function deterministicOverview(): OverviewData {
 }
 
 /**
- * *** تولید «خلاصه‌ی اجرایی» ساختاریافته (Groq، json_object mode) ***
+ * *** تولید «خلاصه‌ی اجرایی» ساختاریافته (Provider مستقل، json_object mode) ***
  * برخلاف generateReply هیچ تاریخچه‌ای ندارد — هر بار یک درخواست تازه و مستقل، دقیقاً
  * منطبق بر عکس فوری لحظه‌ی فراخوانی از داده‌های زنده.
  */
 export async function generateOverview(): Promise<OverviewResult> {
-  const ai = getClient();
+  const ai = getProvider();
   if (!ai) {
-    console.warn("[assistant] GROQ_API_KEY تنظیم نشده — خلاصه‌ی قطعی داخلی نمایش داده می‌شود.");
+    console.warn("[assistant] Provider زبانی در دسترس نیست — خلاصه‌ی قطعی داخلی نمایش داده می‌شود.");
     return deterministicOverview();
   }
 
   try {
-    const response = await ai.chat.completions.create({
-      model: config.groqModel,
+    const content = await ai.complete({
       temperature: 0.4,
-      response_format: { type: "json_object" },
+      responseFormat: "json_object",
       messages: [{ role: "system", content: buildOverviewSystemInstruction() }],
     });
 
-    const content = (response.choices[0]?.message?.content ?? "").trim();
     if (!content) {
-      console.error("[assistant] خلاصه‌ی اجرایی: پاسخ خالی از Groq.");
+      console.error(`[assistant] خلاصه‌ی اجرایی: پاسخ خالی از Provider «${ai.id}».`);
       return deterministicOverview();
     }
 
@@ -966,11 +959,7 @@ export async function generateOverview(): Promise<OverviewResult> {
 
     return data;
   } catch (err) {
-    if (err instanceof Groq.APIError) {
-      console.error(`[assistant] خطای Groq API در خلاصه‌ی اجرایی (status ${err.status}):`, err.message);
-    } else {
-      console.error("[assistant] خطای غیرمنتظره در تولید خلاصه‌ی اجرایی:", err);
-    }
+    logProviderFailure("تولید خلاصه‌ی اجرایی ناموفق بود", err);
     return deterministicOverview();
   }
 }

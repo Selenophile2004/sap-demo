@@ -6,7 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "npm run build && node --test dist/security/authorization.test.js dist/middleware/corsPolicy.test.js dist/data-import/importCore.test.js dist/data-import/fileParser.test.js dist/analytics/presentation.test.js dist/lib/forecastMath.test.js"
+    "test": "npm run build && node --test dist/security/authorization.test.js dist/middleware/corsPolicy.test.js dist/ai/providerFactory.test.js dist/ai/openAiCompatibleProvider.test.js dist/data-import/importCore.test.js dist/data-import/fileParser.test.js dist/analytics/presentation.test.js dist/analytics/scenario.test.js dist/analytics/dataHealth.test.js dist/reports/executiveReport.test.js dist/lib/forecastMath.test.js"
   },
   "keywords": [],
   "author": "",

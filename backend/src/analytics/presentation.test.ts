@@ -41,6 +41,12 @@ describe("analytics presentation", () => {
     assert.ok(chart && chart.type === "chart");
     assert.equal(chart.chartType, "line");
     assert.deepEqual(chart.labels, ["1405/05", "1405/06", "1405/07"]);
+    assert.equal(chart.series[0]?.metricId, "sales.net_amount");
+    assert.equal(presentation.explainability.method, "deterministic-metrics");
+    assert.equal(presentation.explainability.evidence.some((item) => item.metricId === "sales.net_amount"), true);
+    const salesEvidence = presentation.explainability.evidence.find((item) => item.metricId === "sales.net_amount");
+    assert.match(salesEvidence?.formula ?? "", /SUM/i);
+    assert.match(salesEvidence?.source ?? "", /sales_lines/i);
   });
 
   it("falls back to an executive overview for an ambiguous request", () => {

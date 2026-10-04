@@ -25,6 +25,9 @@ import { dataManagementRouter } from "./routes/dataManagement";
 import { auditRouter } from "./routes/audit";
 import { securityHeaders } from "./middleware/security";
 import { createCorsOptionsDelegate } from "./middleware/corsPolicy";
+import { dataHealthRouter } from "./routes/dataHealth";
+import { scenarioRouter } from "./routes/scenario";
+import { reportsRouter } from "./routes/reports";
 
 const app = express();
 app.disable("x-powered-by");
@@ -78,6 +81,9 @@ app.use("/api/finance", requireAuth, financeRouter);
 app.use("/api/assistant", requireAuth, requirePermission("assistant:use"), assistantLimiter, assistantRouter);
 app.use("/api/data-management", requireAuth, dataManagementRouter);
 app.use("/api/audit", requireAuth, auditRouter);
+app.use("/api/data-health", requireAuth, requirePermission("data:read"), dataHealthRouter);
+app.use("/api/scenario", requireAuth, requirePermission("dashboard:read"), scenarioRouter);
+app.use("/api/reports", requireAuth, requirePermission("dashboard:read"), reportsRouter);
 
 // روی هاست، فایل‌های استاتیک فرانت‌اند build‌شده هم از همین یک پردازش سرو
 // می‌شوند (هم‌مبدأ با API، بدون نیاز به CORS). چون BrowserRouter استفاده شده،

@@ -15,6 +15,8 @@ export interface AssistantStatus {
   languageModelAvailable: boolean;
   deterministicAnalyticsAvailable: boolean;
   mode: "hybrid" | "local";
+  provider: "groq" | "openai-compatible";
+  model: string | null;
 }
 
 export interface OverviewKpi {
@@ -43,15 +45,15 @@ export interface OverviewData {
   highlights: string[];
 }
 
-// بک‌اند یا شیء کامل OverviewData را برمی‌گرداند، یا در صورت هر خطایی (کلید Groq
-// نبود، JSON بدشکل، خطای شبکه) یک شیء { error } — هرگز پرتاب/۵xx خام برای این
+// بک‌اند یا شیء کامل OverviewData را برمی‌گرداند، یا در صورت هر خطایی (نبود کلید
+// Provider، JSON بدشکل یا خطای شبکه) یک شیء { error } — هرگز پرتاب/۵xx خام برای این
 // مسیر نداریم (رجوع کنید به generateOverview در routes/assistant.ts بک‌اند).
 export type OverviewResponse = OverviewData | { error: string };
 
 export const assistantApi = {
-  // hasImage: true فقط یک فلگ است، نه بایت‌های واقعی تصویر — مدل فعلی (Groq،
-  // openai/gpt-oss-120b) قابلیت دیدن تصویر ندارد، پس بک‌اند اصلاً محتوایی از تصویر
-  // نمی‌خواهد؛ فقط باید بداند یک تصویر پیوست شده تا صادقانه پاسخ بدهد که نمی‌تواند
+  // hasImage: true فقط یک فلگ است، نه بایت‌های واقعی تصویر — قرارداد فعلی Provider
+  // فقط متنی است، پس بک‌اند محتوای تصویر را دریافت نمی‌کند؛ فقط باید بداند تصویری
+  // پیوست شده تا صادقانه پاسخ بدهد که نمی‌تواند
   // آن را ببیند (رجوع کنید به IMAGE_UNAVAILABLE_REPLY در routes/assistant.ts).
   chat: (message: string, history: AssistantHistoryTurn[], hasImage = false) =>
     apiClient

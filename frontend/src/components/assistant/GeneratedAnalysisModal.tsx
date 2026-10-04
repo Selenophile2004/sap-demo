@@ -1,5 +1,5 @@
-import { Box, Button, Chip, Dialog, DialogContent, Grid, IconButton, Paper, Typography } from "@mui/material";
-import { Bot, CalendarClock, Download, Lightbulb, ShieldCheck, X } from "lucide-react";
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Chip, Dialog, DialogContent, Grid, IconButton, Paper, Typography } from "@mui/material";
+import { Bot, CalendarClock, ChevronDown, Download, Lightbulb, SearchCheck, ShieldCheck, X } from "lucide-react";
 import type { AnalyticsPresentation, AnalyticsWidget } from "../../types/analytics";
 import { formatCompactRial, formatInt, formatPercent } from "../../lib/format";
 import KpiCard from "../common/KpiCard";
@@ -134,6 +134,34 @@ export default function GeneratedAnalysisModal({ open, presentation, onClose }: 
             );
           })}
         </Grid>
+        <Accordion disableGutters elevation={0} sx={{ mt: 2, border: `1px solid ${surface.border}`, "&::before": { display: "none" } }}>
+          <AccordionSummary expandIcon={<ChevronDown size={18} />}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <SearchCheck size={19} color={brand.secondary} />
+              <Typography fontWeight={850}>چرا این نتیجه؟</Typography>
+              <Chip size="small" color="success" variant="outlined" label="محاسبات قطعی" />
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              اعداد توسط مدل زبانی ساخته نشده‌اند. هر شاخص از کاتالوگ رسمی، فرمول مشخص و منبع زیر محاسبه شده است.
+            </Typography>
+            <Grid container spacing={1.25}>
+              {presentation.explainability.evidence.map((item) => (
+                <Grid key={item.metricId} size={{ xs: 12, md: 6 }}>
+                  <Paper variant="outlined" sx={{ p: 1.75, height: "100%" }}>
+                    <Typography fontWeight={800}>{item.label}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: .5 }}>{item.definition}</Typography>
+                    <Typography variant="caption" sx={{ display: "block", mt: 1 }}><b>فرمول:</b> {item.formula}</Typography>
+                    <Typography variant="caption" sx={{ display: "block" }}><b>منبع:</b> {item.source}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}><b>Snapshot:</b> {new Date(item.asOf).toLocaleString("fa-IR")}</Typography>
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+            {presentation.explainability.caveats.map((caveat) => <Typography key={caveat} variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>• {caveat}</Typography>)}
+          </AccordionDetails>
+        </Accordion>
       </DialogContent>
     </Dialog>
   );

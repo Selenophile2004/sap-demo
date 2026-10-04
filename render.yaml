@@ -10,6 +10,8 @@ services:
     buildCommand: "cd frontend && npm install && npm run build && cd ../backend && npm install && npm run build"
     startCommand: "cd backend && node dist/index.js"
     envVars:
+      - key: COMPANY_NAME
+        value: شرکت نمونه
       - key: PUBLIC_DIR
         value: ../frontend/dist
       - key: DATA_DIR
@@ -40,6 +42,12 @@ services:
         value: بازدیدکننده
       - key: SINA_DISPLAY_ROLE
         value: کاربر دمو
+      - key: AI_ENABLED
+        value: "true"
+      - key: AI_PROVIDER
+        value: groq
+      # نام‌های GROQ_* برای سازگاری استقرار فعلی حفظ شده‌اند. در استقرارهای جدید
+      # می‌توان به‌جای آن‌ها AI_API_KEY و AI_MODEL را تنظیم کرد.
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import path from "path";
 import type { AppRole } from "./security/authorization";
+import { resolveAiRuntimeConfig } from "./ai/runtimeConfig";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -12,6 +13,7 @@ function required(name: string): string {
 
 export const config = {
   port: Number(process.env.PORT ?? 4000),
+  companyName: process.env.COMPANY_NAME ?? "شرکت نمونه",
   dataDir: path.resolve(__dirname, "..", process.env.DATA_DIR ?? "../Data"),
   etlDir: path.resolve(__dirname, "..", "..", "etl"),
   // روی هاست، چیدمان پوشه‌ها با مونوریپوی لوکال فرق دارد (فقط etl/output آپلود
@@ -28,28 +30,10 @@ export const config = {
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
   jwtSecret: required("JWT_SECRET"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "12h",
-  // کلید Gemini عمداً required() نیست: نبودن/نامعتبربودنش نباید کل سرور را از کار
-  // بیندازد، فقط باعث می‌شود routes/assistant.ts پاسخ «موقتاً در دسترس نیست» بدهد
-  // (رجوع کنید به همان فایل برای مدیریت خطا). gemini-2.0-flash مقدار حدسیِ فاز قبل
-  // بود؛ gemini-2.5-flash نسخه‌ی پایدار (Stable) و تاییدشده‌ی سطح رایگان فعلی است.
-  // *** غیرفعال: کلیدهای Gemini فعلی هر دو با فرمت جدید «AQ.» هستند که مسیر
-  // REST/SDK استاندارد فعلاً آن‌ها را رد می‌کند (باگ سمت گوگل، تاییدشده در فروم
-  // توسعه‌دهندگان گوگل، نه باگ کد ما). این دو متغیر عمداً نگه داشته شده‌اند (حذف
-  // نشده‌اند) تا اگر گوگل این باگ را رفع کرد، بشود در آینده به Gemini برگشت، ولی
-  // routes/assistant.ts دیگر این‌ها را صدا نمی‌زند. ***
-  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
-  // *** ارائه‌دهنده‌ی فعلی «دستیار هوشمند»: Groq (سطح رایگان واقعی، API سازگار با
-  // OpenAI). کلید Groq هم عمداً required() نیست، به همان دلیل بالا (نبودش نباید
-  // کل سرور را از کار بیندازد). llama-3.3-70b-versatile مقدار حدسیِ فاز قبل بود؛
-  // آن مدل در ۲۶ مرداد ۱۴۰۵ (۱۷ آگوست ۲۰۲۶) از سطح رایگان/توسعه‌دهنده به «فقط
-  // Enterprise/Contact Sales» منتقل شد (deprecated). openai/gpt-oss-120b جایگزین
-  // رسمی توصیه‌شده‌ی خود Groq است: هنوز روی سطح رایگان در دسترس است، از
-  // tool/function calling پشتیبانی می‌کند و برای استدلال/دنبال‌کردن دستورالعمل
-  // مناسب است (رجوع کنید به console.groq.com/docs/deprecations).
-  groqApiKey: process.env.GROQ_API_KEY ?? "",
-  groqModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-120b",
-  aiEnabled: (process.env.AI_ENABLED ?? "true") !== "false",
+  // ارائه‌دهنده مدل پشت یک Interface مستقل قرار دارد. هر استقرار می‌تواند بدون
+  // تغییر routeهای دستیار، Groq یا یک endpoint سازگار با OpenAI را انتخاب کند.
+  // نبودن کلید نیز سرور را متوقف نمی‌کند؛ تحلیل قطعی KPI/نمودار همچنان فعال است.
+  ai: resolveAiRuntimeConfig(process.env),
   users: [
     {
       username: required("CEO_USERNAME"),

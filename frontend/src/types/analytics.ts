@@ -13,7 +13,7 @@ export interface ChartWidget {
   chartType: "line" | "bar" | "donut";
   title: string;
   labels: string[];
-  series: { name: string; values: number[]; unit: "rial" | "percent" | "count" }[];
+  series: { metricId: string; name: string; values: number[]; unit: "rial" | "percent" | "count" }[];
 }
 
 export interface InsightWidget {
@@ -33,4 +33,16 @@ export interface AnalyticsPresentation {
   generatedAt: string;
   sourceLabel: string;
   widgets: AnalyticsWidget[];
+  explainability: {
+    method: "deterministic-metrics";
+    evidence: Array<{
+      metricId: string;
+      label: string;
+      definition: string;
+      formula: string;
+      source: string;
+      asOf: string;
+    }>;
+    caveats: string[];
+  };
 }

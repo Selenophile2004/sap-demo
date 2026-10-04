@@ -1,3 +1,5 @@
+import { getMetricDefinition } from "./metricCatalog";
+
 export type AnalysisTopic = "overview" | "sales" | "receivables" | "finance" | "hr" | "inventory";
 
 export interface AnalyticsSnapshot {
@@ -35,7 +37,7 @@ export interface ChartWidget {
   chartType: "line" | "bar" | "donut";
   title: string;
   labels: string[];
-  series: { name: string; values: number[]; unit: "rial" | "percent" | "count" }[];
+  series: { metricId: string; name: string; values: number[]; unit: "rial" | "percent" | "count" }[];
 }
 
 export interface InsightWidget {
@@ -47,6 +49,15 @@ export interface InsightWidget {
 
 export type AnalyticsWidget = KpiWidget | ChartWidget | InsightWidget;
 
+export interface ExplainabilityEvidence {
+  metricId: string;
+  label: string;
+  definition: string;
+  formula: string;
+  source: string;
+  asOf: string;
+}
+
 export interface AnalyticsPresentation {
   id: string;
   topic: AnalysisTopic;
@@ -55,6 +66,11 @@ export interface AnalyticsPresentation {
   generatedAt: string;
   sourceLabel: string;
   widgets: AnalyticsWidget[];
+  explainability: {
+    method: "deterministic-metrics";
+    evidence: ExplainabilityEvidence[];
+    caveats: string[];
+  };
 }
 
 function containsAny(text: string, terms: string[]): boolean {
@@ -117,7 +133,7 @@ export function buildPresentation(message: string, snapshot: AnalyticsSnapshot):
         chartType: "line",
         title: "روند ماهانه فروش",
         labels: snapshot.sales.monthly.map((point) => point.label),
-        series: [{ name: "فروش خالص", values: snapshot.sales.monthly.map((point) => point.value), unit: "rial" }],
+        series: [{ metricId: "sales.net_amount", name: "فروش خالص", values: snapshot.sales.monthly.map((point) => point.value), unit: "rial" }],
       },
     ];
   } else if (intent.topic === "receivables") {
@@ -141,7 +157,7 @@ export function buildPresentation(message: string, snapshot: AnalyticsSnapshot):
     summary = "تعداد نیروی فعال و روند تغییر ظرفیت سازمان بر پایه داده منابع انسانی.";
     widgets = [
       { type: "kpi", metricId: "hr.headcount", title: "تعداد کارکنان", value: snapshot.hr.headcount, unit: "count" },
-      { type: "chart", chartType: "line", title: "روند تعداد کارکنان", labels: snapshot.hr.monthly.map((point) => point.label), series: [{ name: "تعداد کارکنان", values: snapshot.hr.monthly.map((point) => point.value), unit: "count" }] },
+      { type: "chart", chartType: "line", title: "روند تعداد کارکنان", labels: snapshot.hr.monthly.map((point) => point.label), series: [{ metricId: "hr.headcount", name: "تعداد کارکنان", values: snapshot.hr.monthly.map((point) => point.value), unit: "count" }] },
     ];
   } else if (intent.topic === "inventory") {
     title = "وضعیت موجودی قابل فروش";
@@ -149,9 +165,26 @@ export function buildPresentation(message: string, snapshot: AnalyticsSnapshot):
     widgets = [
       { type: "kpi", metricId: "inventory.sellable_qty", title: "موجودی قابل فروش", value: snapshot.inventory.sellableQty, unit: "count" },
       { type: "kpi", metricId: "inventory.reserved_qty", title: "موجودی رزروشده", value: snapshot.inventory.reservedQty, unit: "count" },
-      { type: "chart", chartType: "donut", title: "ترکیب موجودی", labels: ["قابل فروش", "رزروشده"], series: [{ name: "موجودی", values: [snapshot.inventory.sellableQty, snapshot.inventory.reservedQty], unit: "count" }] },
+      { type: "chart", chartType: "donut", title: "ترکیب موجودی", labels: ["قابل فروش", "رزروشده"], series: [{ metricId: "inventory.sellable_qty", name: "موجودی", values: [snapshot.inventory.sellableQty, snapshot.inventory.reservedQty], unit: "count" }] },
     ];
   }
+
+  const metricIds = [...new Set(widgets.flatMap((widget) => {
+    if (widget.type === "kpi") return [widget.metricId];
+    if (widget.type === "chart") return widget.series.map((series) => series.metricId);
+    return [];
+  }))];
+  const evidence = metricIds.flatMap((metricId) => {
+    const metric = getMetricDefinition(metricId);
+    return metric ? [{
+      metricId: metric.id,
+      label: metric.label,
+      definition: metric.description,
+      formula: metric.formula,
+      source: metric.source,
+      asOf: snapshot.generatedAt,
+    }] : [];
+  });
 
   return {
     id: `analysis-${Date.now()}`,
@@ -161,5 +194,13 @@ export function buildPresentation(message: string, snapshot: AnalyticsSnapshot):
     generatedAt: snapshot.generatedAt,
     sourceLabel: "داده تأییدشده داشبورد",
     widgets,
+    explainability: {
+      method: "deterministic-metrics",
+      evidence,
+      caveats: [
+        "اعداد و نمودارها با قواعد قطعی از داده محاسبه می‌شوند؛ مدل زبانی اجازه ساخت یا تغییر عدد را ندارد.",
+        "تفسیر متنی پیشنهاد مدیریتی است و باید همراه منبع، فرمول و زمان داده خوانده شود.",
+      ],
+    },
   };
 }
