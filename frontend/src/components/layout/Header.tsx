@@ -86,12 +86,12 @@ export default function Header({ onOpenMobileMenu }: Props) {
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-        <IconButton onClick={onOpenMobileMenu} size="small" sx={iconBtnSx}>
+        <IconButton onClick={onOpenMobileMenu} size="small" sx={iconBtnSx} aria-label="باز کردن منوی اصلی">
           <Menu size={18} />
         </IconButton>
         <Tooltip title={refreshing ? "در حال بروزرسانی… ممکن است تا ۲ دقیقه طول بکشد" : "بروزرسانی داده‌ها"}>
           <span>
-            <IconButton onClick={handleRefresh} disabled={refreshing} size="small" sx={iconBtnSx}>
+            <IconButton onClick={handleRefresh} disabled={refreshing} size="small" sx={iconBtnSx} aria-label="بروزرسانی داده‌ها">
               <RefreshCw size={16} className={refreshing ? "spin" : ""} />
             </IconButton>
           </span>

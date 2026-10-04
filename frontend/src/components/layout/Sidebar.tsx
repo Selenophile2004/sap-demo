@@ -5,10 +5,12 @@ import { menuItems } from "../../app/menuConfig";
 import { surface, glassBlur, brand, brandGrey } from "../../app/theme/palette";
 import { plainCache } from "../../app/theme/plainCache";
 import ampersand from "../../assets/logo-ampersand.png";
+import { useAuthStore } from "../../app/store/authStore";
 
 export const SIDEBAR_WIDTH = 264;
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const permissions = useAuthStore((state) => state.user?.permissions ?? []);
   return (
     <>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 3, mb: 4 }}>
@@ -34,7 +36,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           overflowY: "auto",
         }}
       >
-        {menuItems.map((item) => {
+        {menuItems.filter((item) => !item.requiredPermission || permissions.includes(item.requiredPermission)).map((item) => {
           const Icon = item.icon;
           const sectionHeader = item.section && (
             <Typography

@@ -7,4 +7,5 @@ export interface MenuItem {
   comingSoon?: boolean;
   /** اگر با آیتم قبلی فرق کند، یک تیتر بخش کوچک قبل از این آیتم نمایش داده می‌شود. */
   section?: string;
+  requiredPermission?: string;
 }

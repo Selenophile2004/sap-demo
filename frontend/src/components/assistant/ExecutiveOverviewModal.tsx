@@ -1,6 +1,6 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Backdrop, Box, Button, Fade, IconButton, Modal, Paper, Skeleton, Typography } from "@mui/material";
-import { keyframes } from "@emotion/react";
+import { CacheProvider, keyframes } from "@emotion/react";
 import {
   X,
   Sparkles,
@@ -24,6 +24,7 @@ import { useAuthStore } from "../../app/store/authStore";
 import { assistantApi, type OverviewData } from "../../lib/api/assistantApi";
 import KpiCard from "../common/KpiCard";
 import aiIcon from "../../assets/ai-icon.png";
+import { plainCache } from "../../app/theme/plainCache";
 
 // «خلاصه‌ی اجرایی» — درست بعد از یک ورود موفق (نه در هر ناوبری بین صفحات، رجوع
 // کنید به فلگ justLoggedIn در authStore.ts) یک‌بار باز می‌شود و از بک‌اند
@@ -65,6 +66,7 @@ export default function ExecutiveOverviewModal() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const openedForSessionRef = useRef(false);
 
   function load() {
     setLoading(true);
@@ -88,7 +90,8 @@ export default function ExecutiveOverviewModal() {
   // (مثلاً بعد از ناوبری بین صفحات، که AppLayout و این کامپوننت دوباره mount
   // نمی‌شوند) دوباره مودال را باز نکنند.
   useEffect(() => {
-    if (!justLoggedIn) return;
+    if (!justLoggedIn || openedForSessionRef.current) return;
+    openedForSessionRef.current = true;
     consumeJustLoggedIn();
     setData(null);
     setOpen(true);
@@ -107,11 +110,16 @@ export default function ExecutiveOverviewModal() {
 
   const showComparisons = loading ? true : (data?.comparisons.length ?? 0) > 0;
 
+  // MUI Modal در ترکیب با Fade و portal حتی با aria-hidden گاهی زیر‌درخت بسته را
+  // در DOM نگه می‌داشت و pointer event صفحه/دستیار را می‌گرفت. وقتی بسته است کل
+  // Module را unmount می‌کنیم تا هیچ لایه نامرئی روی صفحه باقی نماند.
+  if (!open) return null;
+
   return (
+    <CacheProvider value={plainCache}>
     <Modal
       open={open}
       onClose={handleClose}
-      closeAfterTransition
       slots={{ backdrop: Backdrop }}
       slotProps={{ backdrop: { sx: { bgcolor: "rgba(5,5,8,0.55)", backdropFilter: "blur(4px)" } } }}
       sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}
@@ -171,7 +179,7 @@ export default function ExecutiveOverviewModal() {
                   خلاصه‌ی اجرایی
                 </Typography>
                 <Typography variant="caption" sx={{ color: brandGrey }} noWrap>
-                  آماده‌شده توسط دستیار هوشمند Mindway، بر پایه‌ی داده‌های زنده‌ی همین لحظه
+                  بر پایه‌ی داده‌های زنده و محاسبات قابل‌ردیابی Mindway
                 </Typography>
               </Box>
             </Box>
@@ -348,5 +356,6 @@ export default function ExecutiveOverviewModal() {
         </Paper>
       </Fade>
     </Modal>
+    </CacheProvider>
   );
 }

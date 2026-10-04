@@ -6,7 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run build && node --test dist/security/authorization.test.js dist/data-import/importCore.test.js dist/data-import/fileParser.test.js dist/analytics/presentation.test.js dist/lib/forecastMath.test.js"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +20,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "groq-sdk": "^1.6.0",
@@ -36,5 +37,10 @@
     "@types/node": "^26.1.2",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

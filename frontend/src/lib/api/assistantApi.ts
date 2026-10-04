@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { AnalyticsPresentation } from "../../types/analytics";
 
 export interface AssistantHistoryTurn {
   role: "user" | "assistant";
@@ -7,6 +8,13 @@ export interface AssistantHistoryTurn {
 
 export interface AssistantChatResponse {
   reply: string;
+  presentation?: AnalyticsPresentation;
+}
+
+export interface AssistantStatus {
+  languageModelAvailable: boolean;
+  deterministicAnalyticsAvailable: boolean;
+  mode: "hybrid" | "local";
 }
 
 export interface OverviewKpi {
@@ -50,4 +58,6 @@ export const assistantApi = {
       .post<AssistantChatResponse>("/assistant/chat", { message, history, hasImage })
       .then((r) => r.data),
   overview: () => apiClient.get<OverviewResponse>("/assistant/overview").then((r) => r.data),
+  presentation: (message: string) => apiClient.post<AnalyticsPresentation>("/assistant/presentation", { message }).then((r) => r.data),
+  status: () => apiClient.get<AssistantStatus>("/assistant/status").then((r) => r.data),
 };

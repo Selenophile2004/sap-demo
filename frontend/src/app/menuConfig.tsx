@@ -12,6 +12,7 @@ import {
   ClipboardList,
   HeartHandshake,
   CalendarClock,
+  DatabaseZap,
 } from "lucide-react";
 import type { MenuItem } from "../types/menu";
 
@@ -29,6 +30,8 @@ export const menuItems: MenuItem[] = [
 
   { label: "هشدارها", path: "/alerts", icon: AlertTriangle, section: "تحلیل و آینده‌نگری" },
   { label: "چشم‌انداز آینده", path: "/forecast", icon: Telescope },
+
+  { label: "مدیریت داده‌ها", path: "/data-management", icon: DatabaseZap, section: "مدیریت سیستم", requiredPermission: "data:write" },
 
   { label: "پلنر", icon: CalendarClock, comingSoon: true, section: "به‌زودی" },
   { label: "کیفیت و شکایات مشتریان", icon: HeartHandshake, comingSoon: true },

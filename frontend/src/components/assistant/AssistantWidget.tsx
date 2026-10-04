@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Backdrop, Box, Fade, IconButton, Modal, TextField, Tooltip, Typography } from "@mui/material";
+import { lazy, Suspense, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Backdrop, Box, Button, Chip, Fade, IconButton, Modal, TextField, Tooltip, Typography } from "@mui/material";
 import { CacheProvider, keyframes } from "@emotion/react";
-import { X, Send, Paperclip, ImagePlus, Mic, MicOff, CircleX } from "lucide-react";
+import { X, Send, Paperclip, ImagePlus, Mic, MicOff, CircleX, ChartNoAxesCombined } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { surface, glassBlur, brand, brandGrey } from "../../app/theme/palette";
 import { plainCache } from "../../app/theme/plainCache";
-import { assistantApi, type AssistantHistoryTurn } from "../../lib/api/assistantApi";
+import { assistantApi, type AssistantHistoryTurn, type AssistantStatus } from "../../lib/api/assistantApi";
 import { useAuthStore } from "../../app/store/authStore";
 import aiIcon from "../../assets/ai-icon.png";
+import type { AnalyticsPresentation } from "../../types/analytics";
+
+const GeneratedAnalysisModal = lazy(() => import("./GeneratedAnalysisModal"));
 
 // ---------- Web Speech API — تایپ‌های پایه در lib.dom.d.ts موجودند (Speech
 // RecognitionEvent/ErrorEvent) ولی خودِ کلاس SpeechRecognition و پرچم‌های
@@ -85,12 +88,20 @@ interface ChatMessage {
   // فقط برای نمایش محلی پیوستِ کاربر (data URL) — هیچ‌وقت به بک‌اند فرستاده نمی‌شود
   // (رجوع کنید به assistantApi.chat: فقط یک فلگ hasImage می‌رود، نه این محتوا).
   imageDataUrl?: string;
+  presentation?: AnalyticsPresentation;
 }
 
 const GREETING =
   "سلام! من دستیار هوشمند شما هستم. فعلاً می‌تونم درباره‌ی فروش، مطالبات، سود و زیان، پرسنل، نقدینگی، " +
   "بودجه، انبار و هشدارها با داده‌های واقعی سیستم کمک کنم.\n\n" +
   "مثلاً بپرس: «فروش این ماه چقدر بوده؟» یا «وضعیت نقدینگی چطوره؟»";
+
+const QUICK_PROMPTS = [
+  "وضعیت کلی شرکت را با KPI نشان بده",
+  "فروش شش ماه اخیر را با نمودار نمایش بده",
+  "وضعیت مطالبات و نرخ وصول را تحلیل کن",
+  "موجودی انبار را به شکل کارت نشان بده",
+];
 
 // افکت «تنفسی» دور دکمه‌ی شناور — برای این‌که دستیار هوشمند حس «زنده» بودن بدهد، نه
 // یک آیکون ساکن دیگر. دامنه و شدتش عمداً کم نگه داشته شده (نه پررنگ/گاودی).
@@ -284,7 +295,7 @@ function sanitizeAssistantMarkdown(text: string): string {
   return text.replace(/<br\s*\/?>/gi, "؛ ");
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, onOpenPresentation }: { message: ChatMessage; onOpenPresentation: (presentation: AnalyticsPresentation) => void }) {
   const isUser = message.role === "user";
   return (
     <Box sx={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start" }}>
@@ -321,6 +332,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {sanitizeAssistantMarkdown(message.text)}
             </ReactMarkdown>
+            {message.presentation && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<ChartNoAxesCombined size={15} />}
+                onClick={() => onOpenPresentation(message.presentation!)}
+                sx={{ alignSelf: "flex-start", mt: 0.25 }}
+              >
+                نمایش تحلیل تصویری
+              </Button>
+            )}
           </Box>
         )}
       </Box>
@@ -336,6 +358,8 @@ export default function AssistantWidget() {
   const [showHint, setShowHint] = useState(false);
   const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; name: string } | null>(null);
   const [listening, setListening] = useState(false);
+  const [activePresentation, setActivePresentation] = useState<AnalyticsPresentation | null>(null);
+  const [assistantStatus, setAssistantStatus] = useState<AssistantStatus | null>(null);
   const greetedRef = useRef(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -474,14 +498,15 @@ export default function AssistantWidget() {
       setMessages([{ id: nextId(), role: "assistant", text: GREETING }]);
     }
     scrollToBottom();
+    assistantApi.status().then(setAssistantStatus).catch(() => setAssistantStatus(null));
   }
 
   function handleClose() {
     setOpen(false);
   }
 
-  async function handleSend() {
-    const text = input.trim();
+  async function handleSend(overrideText?: string) {
+    const text = (overrideText ?? input).trim();
     // یا متن، یا تصویر — حداقل یکی لازم است (پیام کاملاً خالی ارسال نمی‌شود).
     if ((!text && !attachedImage) || loading) return;
 
@@ -505,8 +530,9 @@ export default function AssistantWidget() {
       // hasImage فقط یک فلگ است — محتوای واقعی تصویر هرگز به بک‌اند فرستاده نمی‌شود
       // (رجوع کنید به کامنت‌های assistantApi.chat و routes/assistant.ts بک‌اند: مدل
       // فعلی امکان دیدن تصویر ندارد، پس بک‌اند صادقانه همین را می‌گوید، نه وانمود).
-      const { reply } = await assistantApi.chat(text, history, hadImage);
-      setMessages((prev) => [...prev, { id: nextId(), role: "assistant", text: reply }]);
+      const { reply, presentation } = await assistantApi.chat(text, history, hadImage);
+      setMessages((prev) => [...prev, { id: nextId(), role: "assistant", text: reply, presentation }]);
+      if (presentation && /(نمودار|کارت|نمایش بده|پاپ.?آپ)/i.test(text)) setActivePresentation(presentation);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -673,7 +699,7 @@ export default function AssistantWidget() {
                       دستیار هوشمند Mindway
                     </Typography>
                     <Typography variant="caption" sx={{ color: brandGrey }} noWrap>
-                      بر پایه‌ی داده‌های واقعی سیستم
+                      {assistantStatus?.mode === "local" ? "حالت محلی؛ تحلیل داده فعال است" : "مدل زبانی + موتور تحلیل قطعی"}
                     </Typography>
                   </Box>
                 </Box>
@@ -707,8 +733,21 @@ export default function AssistantWidget() {
               >
                 <Box sx={{ maxWidth: 760, width: "100%", mx: "auto", display: "flex", flexDirection: "column", gap: 1.5 }}>
                   {messages.map((m) => (
-                    <MessageBubble key={m.id} message={m} />
+                    <MessageBubble key={m.id} message={m} onOpenPresentation={setActivePresentation} />
                   ))}
+                  {messages.length === 1 && !loading && (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                      {QUICK_PROMPTS.map((prompt) => (
+                        <Chip
+                          key={prompt}
+                          label={prompt}
+                          onClick={() => handleSend(prompt)}
+                          variant="outlined"
+                          sx={{ cursor: "pointer", "&:hover": { borderColor: brand.primaryLight, bgcolor: "rgba(121,0,221,.08)" } }}
+                        />
+                      ))}
+                    </Box>
+                  )}
                   {loading && <TypingIndicator />}
                 </Box>
               </Box>
@@ -821,7 +860,7 @@ export default function AssistantWidget() {
                     }}
                   />
                   <IconButton
-                    onClick={handleSend}
+                    onClick={() => handleSend()}
                     disabled={(!input.trim() && !attachedImage) || loading}
                     aria-label="ارسال پیام"
                     sx={{
@@ -853,6 +892,15 @@ export default function AssistantWidget() {
             </Box>
           </Fade>
       </Modal>
+      {activePresentation && (
+        <Suspense fallback={null}>
+          <GeneratedAnalysisModal
+            open
+            presentation={activePresentation}
+            onClose={() => setActivePresentation(null)}
+          />
+        </Suspense>
+      )}
     </CacheProvider>
   );
 }

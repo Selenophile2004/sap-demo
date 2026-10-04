@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { commentsDb } from "../db/commentsDb";
-import type { AuthedRequest } from "../middleware/requireAuth";
+import { requirePermission, type AuthedRequest } from "../middleware/requireAuth";
 
 export const commentsRouter = Router();
 
@@ -34,14 +34,14 @@ commentsRouter.get("/all", (_req, res) => {
   res.json(rows);
 });
 
-commentsRouter.post("/", (req: AuthedRequest, res) => {
+commentsRouter.post("/", requirePermission("comments:write"), (req: AuthedRequest, res) => {
   const { targetType, targetId, targetLabel, text } = req.body as {
     targetType?: string;
     targetId?: string;
     targetLabel?: string;
     text?: string;
   };
-  if (!targetType || !targetId || !text?.trim()) {
+  if (!targetType || !targetId || !text?.trim() || text.trim().length > 1500) {
     res.status(400).json({ error: "targetType، targetId و text لازم است" });
     return;
   }
@@ -55,7 +55,7 @@ commentsRouter.post("/", (req: AuthedRequest, res) => {
   res.status(201).json(row);
 });
 
-commentsRouter.delete("/:id", (req: AuthedRequest, res) => {
+commentsRouter.delete("/:id", requirePermission("comments:write"), (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const row = commentsDb().prepare(`SELECT * FROM comments WHERE id = ?`).get(id) as CommentRow | undefined;
   if (!row) {

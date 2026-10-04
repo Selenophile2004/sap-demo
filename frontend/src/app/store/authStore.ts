@@ -4,6 +4,8 @@ export interface AuthUser {
   username: string;
   displayName: string;
   displayRole: string;
+  role: "admin" | "executive" | "viewer";
+  permissions: string[];
 }
 
 interface AuthState {

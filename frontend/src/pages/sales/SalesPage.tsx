@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Box, Typography, Grid, Button, Chip } from "@mui/material";
 import { Wallet, Receipt, Users, Calendar, Repeat, ReceiptText, LayoutGrid, BadgeDollarSign } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -63,7 +63,7 @@ export default function SalesPage() {
     itemGroupsApi.summary().then((s) => setCategorizedPct(s.categorizedPct));
   }, []);
 
-  const filters = {
+  const filters = useMemo(() => ({
     center: centers,
     visitor: visitors,
     dateFrom: dateFrom ?? undefined,
@@ -71,7 +71,7 @@ export default function SalesPage() {
     years,
     months,
     activeBasketOnly,
-  };
+  }), [centers, visitors, dateFrom, dateTo, years, months, activeBasketOnly]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -97,16 +97,7 @@ export default function SalesPage() {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    JSON.stringify(centers),
-    JSON.stringify(visitors),
-    activeBasketOnly,
-    dateFrom,
-    dateTo,
-    JSON.stringify(years),
-    JSON.stringify(months),
-  ]);
+  }, [filters, centers, visitors, activeBasketOnly]);
 
   useEffect(() => {
     loadAll();

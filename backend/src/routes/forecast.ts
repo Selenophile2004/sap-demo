@@ -3,6 +3,7 @@ import { salesDb, receivablesDb, pnlDb } from "../db";
 import { mappingsDb } from "../db/mappingsDb";
 import { lastCompleteMonth, previousYearMonth } from "../lib/jalali";
 import { average, stddev, momGrowthRates, linearRegression, clamp, nextYearMonth } from "../lib/stats";
+import { currentValueToFutureNominal } from "../lib/forecastMath";
 
 export const forecastRouter = Router();
 
@@ -153,14 +154,16 @@ forecastRouter.get("/overview", (req, res) => {
   const forecast = forecastMonths.map((m, idx) => {
     if (idx > 0) runningReal = runningReal * (1 + blendedRealGrowth);
     const monthsAhead = idx + 1;
-    const nominal = runningReal / (1 + monthlyInflation) ** monthsAhead; // ارزش اسمی موردانتظار در همان ماه آینده
+    // runningReal با قدرت خرید آخرین ماه بیان شده است؛ برای مبلغ اسمی آینده باید
+    // تورم به آن افزوده شود، نه از آن کم. تقسیم قبلی جهت تبدیل را معکوس می‌کرد.
+    const nominal = currentValueToFutureNominal(runningReal, monthlyInflation, monthsAhead);
     const band = runningReal * growthVolatility * Math.sqrt(monthsAhead);
     return {
       ...m,
       nominal: Math.round(nominal),
       real: Math.round(runningReal),
-      nominalLow: Math.round(Math.max(0, (runningReal - band) / (1 + monthlyInflation) ** monthsAhead)),
-      nominalHigh: Math.round((runningReal + band) / (1 + monthlyInflation) ** monthsAhead),
+      nominalLow: Math.round(Math.max(0, currentValueToFutureNominal(runningReal - band, monthlyInflation, monthsAhead))),
+      nominalHigh: Math.round(currentValueToFutureNominal(runningReal + band, monthlyInflation, monthsAhead)),
     };
   });
 
@@ -274,9 +277,8 @@ forecastRouter.get("/overview", (req, res) => {
         annualFxDepreciationPctReference: DEFAULT_ANNUAL_FX_DEPRECIATION_PCT,
         asOf: "تیر ۱۴۰۵ / ژوئیه ۲۰۲۶",
         sources: [
-          "بانک مرکزی ایران — نرخ تورم نقطه‌به‌نقطه/سالانه خرداد ۱۴۰۵",
-          "مرکز آمار ایران — نرخ تورم سالانه و تورم مواد غذایی خرداد ۱۴۰۵",
-          "نرخ ارز بازار آزاد (دلار/ریال) — گزارش‌های تیر ۱۴۰۵",
+          "سناریوی نمایشی قابل تنظیم توسط کاربر — این مقدار داده رسمی یا توصیه مالی نیست",
+          "تاریخچه داخلی فروش، وصول و حاشیه سود موجود در همین نسخه دمو",
         ],
       },
     },

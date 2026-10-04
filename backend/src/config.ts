@@ -1,5 +1,6 @@
 import "dotenv/config";
 import path from "path";
+import type { AppRole } from "./security/authorization";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -48,18 +49,21 @@ export const config = {
   // مناسب است (رجوع کنید به console.groq.com/docs/deprecations).
   groqApiKey: process.env.GROQ_API_KEY ?? "",
   groqModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-120b",
+  aiEnabled: (process.env.AI_ENABLED ?? "true") !== "false",
   users: [
     {
       username: required("CEO_USERNAME"),
       passwordHash: required("CEO_PASSWORD_HASH"),
       displayName: required("CEO_DISPLAY_NAME"),
       displayRole: required("CEO_DISPLAY_ROLE"),
+      role: "admin" as AppRole,
     },
     {
       username: required("SINA_USERNAME"),
       passwordHash: required("SINA_PASSWORD_HASH"),
       displayName: required("SINA_DISPLAY_NAME"),
       displayRole: required("SINA_DISPLAY_ROLE"),
+      role: "viewer" as AppRole,
     },
   ],
 };
