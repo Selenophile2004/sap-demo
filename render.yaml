@@ -3,6 +3,10 @@ services:
     name: sap-demo
     runtime: node
     plan: free
+    repo: https://github.com/Selenophile2004/sap-demo.git
+    branch: main
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
     buildCommand: "cd frontend && npm install && npm run build && cd ../backend && npm install && npm run build"
     startCommand: "cd backend && node dist/index.js"
     envVars:
@@ -15,7 +19,7 @@ services:
       - key: ETL_ENABLED
         value: "false"
       - key: CORS_ORIGIN
-        value: https://sap-demo.onrender.com
+        value: https://sap-demo-qs5j.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
