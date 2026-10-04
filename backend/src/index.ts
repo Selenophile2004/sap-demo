@@ -24,6 +24,7 @@ import { assistantRouter } from "./routes/assistant";
 import { dataManagementRouter } from "./routes/dataManagement";
 import { auditRouter } from "./routes/audit";
 import { securityHeaders } from "./middleware/security";
+import { createCorsOptionsDelegate } from "./middleware/corsPolicy";
 
 const app = express();
 app.disable("x-powered-by");
@@ -34,12 +35,7 @@ app.disable("x-powered-by");
 app.set("query parser", "extended");
 
 const allowedOrigins = config.corsOrigin.split(",").map((origin) => origin.trim()).filter(Boolean);
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error("Origin not allowed"));
-  },
-}));
+app.use(cors(createCorsOptionsDelegate(allowedOrigins)));
 app.use(securityHeaders);
 app.use(express.json({ limit: "8mb", strict: true }));
 
